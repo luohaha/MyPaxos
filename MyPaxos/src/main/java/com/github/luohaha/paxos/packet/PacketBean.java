@@ -1,4 +1,4 @@
-package com.github.luohaha.packet;
+package com.github.luohaha.paxos.packet;
 
 public class PacketBean {
 	private String type;

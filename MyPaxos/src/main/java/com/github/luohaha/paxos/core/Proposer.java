@@ -15,11 +15,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import com.github.luohaha.packet.AcceptPacket;
-import com.github.luohaha.packet.AcceptResponsePacket;
-import com.github.luohaha.packet.PacketBean;
-import com.github.luohaha.packet.PreparePacket;
-import com.github.luohaha.packet.PrepareResponsePacket;
+import com.github.luohaha.paxos.packet.AcceptPacket;
+import com.github.luohaha.paxos.packet.AcceptResponsePacket;
+import com.github.luohaha.paxos.packet.PacketBean;
+import com.github.luohaha.paxos.packet.PreparePacket;
+import com.github.luohaha.paxos.packet.PrepareResponsePacket;
 import com.github.luohaha.paxos.utils.CommClient;
 import com.github.luohaha.paxos.utils.CommClientImpl;
 import com.github.luohaha.paxos.utils.CommServer;
