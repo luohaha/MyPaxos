@@ -1,0 +1,1 @@
+{"1":{"ballot":2,"value":"hello paxos!","acceptedBallot":2},"2":{"ballot":2,"value":"hello paxos!","acceptedBallot":2},"3":{"ballot":1,"value":"hello paxos!","acceptedBallot":1},"4":{"ballot":1,"value":"hello paxos!","acceptedBallot":1},"5":{"ballot":1,"value":"hello paxos!","acceptedBallot":1},"6":{"ballot":1,"acceptedBallot":0}}

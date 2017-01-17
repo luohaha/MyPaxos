@@ -8,12 +8,8 @@
         "id" : 2,
         "host" : "localhost",
         "port" : 33343
-    },
-    {
-        "id" : 3,
-        "host" : "localhost",
-        "port" : 33353
     }],
-    "myid" : 3,
-    "timeout" : 1000
+    "myid" : 2,
+    "timeout" : 1000,
+    "dataDir" : "./dataDir/"
 }

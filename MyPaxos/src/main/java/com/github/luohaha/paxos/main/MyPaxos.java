@@ -69,10 +69,10 @@ public class MyPaxos {
 		List<InfoObject> proposers = getProposerList();
 		InfoObject myProposer = getMy(proposers);
 		// 启动accepter
-		Accepter accepter = new Accepter(myAccepter.getId(), proposers, myAccepter);
+		Accepter accepter = new Accepter(myAccepter.getId(), proposers, myAccepter, confObject.getDataDir());
 		accepter.start();
 		// 启动proposer
-		Proposer proposer = new Proposer(myProposer.getId(), accepters, myProposer, this.confObject.getTimeout());
+		Proposer proposer = new Proposer(myProposer.getId(), accepters, myProposer, this.confObject.getTimeout(), accepter);
 		proposer.start();
 		CommServer server = new CommServerImpl(getMy(this.confObject.getNodes()).getPort());
 		System.out.println("paxos node start...");

@@ -9,6 +9,7 @@ public class ConfObject {
 	private List<InfoObject> nodes = new ArrayList<>();
 	private int myid;
 	private int timeout;
+	private String dataDir;
 
 	public ConfObject() {
 	}
@@ -35,6 +36,14 @@ public class ConfObject {
 
 	public void setTimeout(int timeout) {
 		this.timeout = timeout;
+	}
+
+	public String getDataDir() {
+		return dataDir;
+	}
+
+	public void setDataDir(String dataDir) {
+		this.dataDir = dataDir;
 	}
 	
 }

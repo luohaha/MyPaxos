@@ -1,5 +1,9 @@
 package com.github.luohaha.paxos.core;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.HashMap;
@@ -7,6 +11,8 @@ import java.util.List;
 import java.util.Map;
 
 import javax.crypto.Cipher;
+
+import org.omg.CORBA.portable.ValueBase;
 
 import com.github.luohaha.paxos.packet.AcceptPacket;
 import com.github.luohaha.paxos.packet.AcceptResponsePacket;
@@ -17,7 +23,9 @@ import com.github.luohaha.paxos.utils.CommClient;
 import com.github.luohaha.paxos.utils.CommClientImpl;
 import com.github.luohaha.paxos.utils.CommServer;
 import com.github.luohaha.paxos.utils.CommServerImpl;
+import com.github.luohaha.paxos.utils.ConfReader;
 import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 
 public class Accepter {
 	class Instance {
@@ -27,6 +35,7 @@ public class Accepter {
 		private Object value;
 		// accepted value's ballot
 		private int acceptedBallot;
+
 		public Instance(int ballot, Object value, int acceptedBallot) {
 			super();
 			this.ballot = ballot;
@@ -34,28 +43,35 @@ public class Accepter {
 			this.acceptedBallot = acceptedBallot;
 		}
 	}
-	
+
 	// accepter's state, contain each instances
 	private Map<Integer, Instance> instanceState = new HashMap<>();
 	// accepted value
 	private Map<Integer, Object> acceptedValue = new HashMap<>();
 	// accepter's id
-	private int id;
+	private transient int id;
 	// proposers
-	private List<InfoObject> proposers;
-	//my conf
-	private InfoObject my;
-	
-	public Accepter(int id, List<InfoObject> proposers, InfoObject my) {
+	private transient List<InfoObject> proposers;
+	// my conf
+	private transient InfoObject my;
+	// 保存最近一次成功提交的instance，用于优化
+	private int lastInstanceId = 0;
+	// 数据持久化的文件位置
+	private String dataDir;
+
+	public Accepter(int id, List<InfoObject> proposers, InfoObject my, String dataDir) {
 		this.id = id;
 		this.proposers = proposers;
 		this.my = my;
+		this.dataDir = dataDir;
+		instanceRecover();
 	}
-	
+
 	/**
 	 * start this node
-	 * @throws IOException 
-	 * @throws InterruptedException 
+	 * 
+	 * @throws IOException
+	 * @throws InterruptedException
 	 */
 	public void start() {
 		new Thread(() -> {
@@ -66,6 +82,9 @@ public class Accepter {
 				while (true) {
 					byte[] data = server.recvFrom();
 					PacketBean bean = gson.fromJson(new String(data), PacketBean.class);
+					// System.out.println("accepter-" + my.getId() + " " +
+					// gson.toJson(bean));
+					System.out.println(gson.toJson(this.instanceState));
 					switch (bean.getType()) {
 					case "PreparePacket":
 						PreparePacket preparePacket = gson.fromJson(bean.getData(), PreparePacket.class);
@@ -73,7 +92,8 @@ public class Accepter {
 						break;
 					case "AcceptPacket":
 						AcceptPacket acceptPacket = gson.fromJson(bean.getData(), AcceptPacket.class);
-						onAccept(acceptPacket.getId(), acceptPacket.getInstance(), acceptPacket.getBallot(), acceptPacket.getValue());
+						onAccept(acceptPacket.getId(), acceptPacket.getInstance(), acceptPacket.getBallot(),
+								acceptPacket.getValue());
 						break;
 					default:
 						System.out.println("unknown type!!!");
@@ -89,21 +109,26 @@ public class Accepter {
 
 	/**
 	 * handle prepare from proposer
+	 * 
 	 * @param instance
-	 * current instance
+	 *            current instance
 	 * @param ballot
-	 * prepare ballot
-	 * @throws IOException 
-	 * @throws UnknownHostException 
+	 *            prepare ballot
+	 * @throws IOException
+	 * @throws UnknownHostException
 	 */
 	public void onPrepare(int peerId, int instance, int ballot) throws UnknownHostException, IOException {
 		if (!instanceState.containsKey(instance)) {
 			instanceState.put(instance, new Instance(ballot, null, 0));
+			// 持久化到磁盘
+			instancePersistence();
 			prepareResponse(peerId, id, instance, true, 0, null);
 		} else {
 			Instance current = instanceState.get(instance);
 			if (ballot > current.ballot) {
 				current.ballot = ballot;
+				// 持久化到磁盘
+				instancePersistence();
 				prepareResponse(peerId, id, instance, true, current.acceptedBallot, current.value);
 			} else {
 				prepareResponse(peerId, id, instance, false, current.ballot, null);
@@ -114,35 +139,37 @@ public class Accepter {
 	/**
 	 * 
 	 * @param id
-	 * accepter's id
+	 *            accepter's id
 	 * @param ok
-	 * ok or reject
+	 *            ok or reject
 	 * @param ab
-	 * accepted ballot
+	 *            accepted ballot
 	 * @param av
-	 * accepted value
-	 * @throws IOException 
-	 * @throws UnknownHostException 
+	 *            accepted value
+	 * @throws IOException
+	 * @throws UnknownHostException
 	 */
-	private void prepareResponse(int peerId, int id, int instance, boolean ok, int ab, Object av) throws UnknownHostException, IOException {
+	private void prepareResponse(int peerId, int id, int instance, boolean ok, int ab, Object av)
+			throws UnknownHostException, IOException {
 		CommClient client = new CommClientImpl();
 		Gson gson = new Gson();
-		PacketBean bean = new PacketBean("PrepareResponsePacket", gson.toJson(new PrepareResponsePacket(id, instance, ok, ab, av)));
+		PacketBean bean = new PacketBean("PrepareResponsePacket",
+				gson.toJson(new PrepareResponsePacket(id, instance, ok, ab, av)));
 		InfoObject peer = getSpecInfoObect(peerId);
-		client.sendTo(peer.getHost(), peer.getPort(), 
-				gson.toJson(bean).getBytes());
+		client.sendTo(peer.getHost(), peer.getPort(), gson.toJson(bean).getBytes());
 	}
-	
+
 	/**
 	 * handle accept from proposer
+	 * 
 	 * @param instance
-	 * current instance
+	 *            current instance
 	 * @param ballot
-	 * accept ballot 
+	 *            accept ballot
 	 * @param value
-	 * accept value
-	 * @throws IOException 
-	 * @throws UnknownHostException 
+	 *            accept value
+	 * @throws IOException
+	 * @throws UnknownHostException
 	 */
 	public void onAccept(int peerId, int instance, int ballot, Object value) throws UnknownHostException, IOException {
 		if (!this.instanceState.containsKey(instance)) {
@@ -153,22 +180,46 @@ public class Accepter {
 				current.acceptedBallot = ballot;
 				current.value = value;
 				acceptResponse(peerId, id, instance, true);
+				// 成功
 				this.acceptedValue.put(instance, value);
+				if (!this.instanceState.containsKey(instance + 1)) {
+					// multi-paxos 中的优化，省去了连续成功后的prepare阶段
+					this.instanceState.put(instance + 1, new Instance(1, null, 0));
+				}
+				// 保存最后一次成功的instance的位置，用于proposer直接从这里开始执行
+				this.lastInstanceId = instance;
+				// 持久化到磁盘
+				instancePersistence();
 			} else {
 				acceptResponse(peerId, id, instance, false);
 			}
 		}
 	}
-	
+
 	private void acceptResponse(int peerId, int id, int instance, boolean ok) throws UnknownHostException, IOException {
 		CommClient client = new CommClientImpl();
 		Gson gson = new Gson();
 		InfoObject infoObject = getSpecInfoObect(peerId);
-		PacketBean bean = new PacketBean("AcceptResponsePacket", gson.toJson(new AcceptResponsePacket(id, instance, ok)));
-		client.sendTo(infoObject.getHost(), infoObject.getPort(), 
-				new Gson().toJson(gson.toJsonTree(bean)).getBytes());
+		PacketBean bean = new PacketBean("AcceptResponsePacket",
+				gson.toJson(new AcceptResponsePacket(id, instance, ok)));
+		client.sendTo(infoObject.getHost(), infoObject.getPort(), new Gson().toJson(gson.toJsonTree(bean)).getBytes());
 	}
-	
+
+	/**
+	 * proposer从这获取最近的instance的id
+	 * 
+	 * @return
+	 */
+	public int getLastInstanceId() {
+		return lastInstanceId;
+	}
+
+	/**
+	 * 获取特定的info
+	 * 
+	 * @param key
+	 * @return
+	 */
 	private InfoObject getSpecInfoObect(int key) {
 		for (InfoObject each : this.proposers) {
 			if (key == each.getId()) {
@@ -177,4 +228,76 @@ public class Accepter {
 		}
 		return null;
 	}
+
+	/**
+	 * 在磁盘上存储instance
+	 */
+	private void instancePersistence() {
+		try {
+			FileWriter fileWriter = new FileWriter(this.dataDir + "data-" + this.id + ".json");
+			fileWriter.write(new Gson().toJson(this.instanceState));
+			fileWriter.flush();
+			fileWriter.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * instance恢复
+	 */
+	private void instanceRecover() {
+		String data = readFile(this.dataDir + "data-" + this.id + ".json");
+		if (data == null || data.length() == 0) {
+			File file = new File(this.dataDir + "data-" + this.id + ".json");
+			if (!file.exists()) {
+				try {
+					file.createNewFile();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+			return;
+		}
+		this.instanceState.putAll(new Gson().fromJson(data, new TypeToken<Map<Integer, Instance>>() {}.getType()));
+		this.instanceState.forEach((key, value) -> {
+			if (value.value != null)
+				this.acceptedValue.put(key, value.value);
+		});
+	}
+
+	/**
+	 * 读取文件
+	 * 
+	 * @param filename
+	 * @return
+	 */
+	private String readFile(String filename) {
+		String ret = "";
+		File file = new File(filename);
+		BufferedReader reader = null;
+		try {
+			reader = new BufferedReader(new FileReader(file));
+			String tempString = null;
+			StringBuffer buffer = new StringBuffer();
+			while ((tempString = reader.readLine()) != null) {
+				buffer.append(tempString);
+			}
+			ret = buffer.toString();
+			reader.close();
+		} catch (IOException e) {
+			// e.printStackTrace();
+		} finally {
+			if (reader != null) {
+				try {
+					reader.close();
+				} catch (IOException e1) {
+				}
+			}
+		}
+		return ret;
+	}
+
 }

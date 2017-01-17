@@ -36,11 +36,9 @@ public class Proposer {
 		// a set for promise receive
 		private Set<Integer> pSet;
 		// value found after phase 1
-		private Object value1;
-		// value1's ballot
-		private int value1Ballot;
-		// use for phase 2
-		private Object value2;
+		private Object value;
+		// value's ballot
+		private int valueBallot;
 		// accept set
 		private Set<Integer> acceptSet;
 		// is wantvalue doneValue
@@ -48,14 +46,13 @@ public class Proposer {
 		// state
 		private Proposer_State state;
 
-		public Instance(int ballot, Set<Integer> pSet, Object value1, int value1Ballot, Object value2,
+		public Instance(int ballot, Set<Integer> pSet, Object value, int valueBallot,
 				Set<Integer> acceptSet, boolean isSucc, Proposer_State state) {
 			super();
 			this.ballot = ballot;
 			this.pSet = pSet;
-			this.value1 = value1;
-			this.value1Ballot = value1Ballot;
-			this.value2 = value2;
+			this.value = value;
+			this.valueBallot = valueBallot;
 			this.acceptSet = acceptSet;
 			this.isSucc = isSucc;
 			this.state = state;
@@ -88,13 +85,20 @@ public class Proposer {
 
 	// 成功提交的状态
 	private BlockingQueue<Object> hasSummitQueue = new ArrayBlockingQueue<>(1);
-
-	public Proposer(int id, List<InfoObject> accepters, InfoObject my, int timeout) {
+	
+	// 上一次的提交是否成功
+	private boolean isLastSumbitSucc = false;
+	
+	//本节点的accepter
+	private Accepter accepter;
+	
+	public Proposer(int id, List<InfoObject> accepters, InfoObject my, int timeout, Accepter accepter) {
 		this.id = id;
 		this.accepters = accepters;
 		this.accepterNum = accepters.size();
 		this.my = my;
 		this.timeout = timeout;
+		this.accepter = accepter;
 	}
 
 	/**
@@ -111,8 +115,8 @@ public class Proposer {
 				System.out.println("proposer-" + my.getId() + " start!");
 				while (true) {
 					byte[] data = server.recvFrom();
-					// System.out.println(new String(data));
 					PacketBean bean = gson.fromJson(new String(data), PacketBean.class);
+					System.out.println("proposer-" + my.getId() + " " + gson.toJson(bean));
 					switch (bean.getType()) {
 					case "PrepareResponsePacket":
 						PrepareResponsePacket prepareResponsePacket = gson.fromJson(bean.getData(),
@@ -157,11 +161,21 @@ public class Proposer {
 	 * 在prepare操作之前
 	 */
 	public void beforPrepare() {
+		// 获取accepter最近的一次instance的id
+		this.currentInstance = accepter.getLastInstanceId();
 		this.currentInstance++;
-		Instance instance = new Instance(1, new HashSet<>(), null, 0, null, new HashSet<>(), false,
+		Instance instance = new Instance(1, new HashSet<>(), null, 0, new HashSet<>(), false,
 				Proposer_State.READY);
 		this.instanceState.put(this.currentInstance, instance);
-		prepare(this.id, this.currentInstance, 1);
+		System.out.println(this.isLastSumbitSucc);
+		if (this.isLastSumbitSucc == false) {
+			// 执行完整的流程
+			prepare(this.id, this.currentInstance, 1);
+		} else {
+			// multi-paxos 中的优化，直接accept
+			instance.isSucc = true;
+			accept(this.id, this.currentInstance, 1, this.readyToSubmitQueue.peek());
+		}
 	}
 
 	/**
@@ -216,17 +230,18 @@ public class Proposer {
 			return;
 		if (ok) {
 			current.pSet.add(peerId);
-			if (ab > current.value1Ballot && av != null) {
-				current.value1Ballot = ab;
-				current.value1 = av;
+			if (ab > current.valueBallot && av != null) {
+				current.valueBallot = ab;
+				current.value = av;
+				current.isSucc = false;
 			}
 			if (current.pSet.size() >= this.accepterNum / 2 + 1) {
-				if (current.value1 == null) {
+				if (current.value == null) {
 					Object object = this.readyToSubmitQueue.peek();
-					current.value1 = object;
+					current.value = object;
 					current.isSucc = true;
 				}
-				accept(id, instance, current.ballot, current.value1);
+				accept(id, instance, current.ballot, current.value);
 			}
 		}
 	}
@@ -285,9 +300,11 @@ public class Proposer {
 				// 流程结束
 				done(instance);
 				if (current.isSucc) {
+					this.isLastSumbitSucc = true;
 					this.hasSummitQueue.put(this.readyToSubmitQueue.take());
 				} else {
 					// 说明这个instance的id已经被占有
+					this.isLastSumbitSucc = false;
 					beforPrepare();
 				}
 			}
