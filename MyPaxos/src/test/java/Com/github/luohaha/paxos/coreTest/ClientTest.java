@@ -8,14 +8,15 @@ import com.github.luohaha.paxos.core.Accepter;
 import com.github.luohaha.paxos.core.ConfObject;
 import com.github.luohaha.paxos.core.InfoObject;
 import com.github.luohaha.paxos.core.Proposer;
+import com.github.luohaha.paxos.main.MyPaxosClient;
 import com.github.luohaha.paxos.utils.CommClient;
 import com.github.luohaha.paxos.utils.CommClientImpl;
 import com.github.luohaha.paxos.utils.ConfReader;
 import com.google.gson.Gson;
 
-public class CoreTest {
+public class ClientTest {
 	public static void main(String[] args) throws UnknownHostException, IOException {
-		CommClient client = new CommClientImpl();
-		client.sendTo("localhost", 33333, "hello paxos!".getBytes());
+		MyPaxosClient client = new MyPaxosClient("localhost", 33333);
+		client.submit("hello paxos!");
 	}
 }
