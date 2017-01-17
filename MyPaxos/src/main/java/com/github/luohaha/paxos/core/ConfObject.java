@@ -10,6 +10,7 @@ public class ConfObject {
 	private int myid;
 	private int timeout;
 	private String dataDir;
+	private boolean enableDataPersistence;
 
 	public ConfObject() {
 	}
@@ -44,6 +45,14 @@ public class ConfObject {
 
 	public void setDataDir(String dataDir) {
 		this.dataDir = dataDir;
+	}
+
+	public boolean isEnableDataPersistence() {
+		return enableDataPersistence;
+	}
+
+	public void setEnableDataPersistence(boolean enableDataPersistence) {
+		this.enableDataPersistence = enableDataPersistence;
 	}
 	
 }

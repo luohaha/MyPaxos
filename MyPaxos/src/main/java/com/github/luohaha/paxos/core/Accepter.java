@@ -1,19 +1,12 @@
 package com.github.luohaha.paxos.core;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import javax.crypto.Cipher;
-
-import org.omg.CORBA.portable.ValueBase;
-
 import com.github.luohaha.paxos.packet.AcceptPacket;
 import com.github.luohaha.paxos.packet.AcceptResponsePacket;
 import com.github.luohaha.paxos.packet.PacketBean;
@@ -56,14 +49,14 @@ public class Accepter {
 	private transient InfoObject my;
 	// 保存最近一次成功提交的instance，用于优化
 	private int lastInstanceId = 0;
-	// 数据持久化的文件位置
-	private String dataDir;
+	// 配置文件
+	private ConfObject confObject;
 
-	public Accepter(int id, List<InfoObject> proposers, InfoObject my, String dataDir) {
+	public Accepter(int id, List<InfoObject> proposers, InfoObject my, ConfObject confObject) {
 		this.id = id;
 		this.proposers = proposers;
 		this.my = my;
-		this.dataDir = dataDir;
+		this.confObject = confObject;
 		instanceRecover();
 	}
 
@@ -233,8 +226,10 @@ public class Accepter {
 	 * 在磁盘上存储instance
 	 */
 	private void instancePersistence() {
+		if (!this.confObject.isEnableDataPersistence())
+			return;
 		try {
-			FileWriter fileWriter = new FileWriter(this.dataDir + "data-" + this.id + ".json");
+			FileWriter fileWriter = new FileWriter(this.confObject.getDataDir() + "data-" + this.id + ".json");
 			fileWriter.write(new Gson().toJson(this.instanceState));
 			fileWriter.flush();
 			fileWriter.close();
@@ -248,9 +243,11 @@ public class Accepter {
 	 * instance恢复
 	 */
 	private void instanceRecover() {
-		String data = readFile(this.dataDir + "data-" + this.id + ".json");
+		if (!this.confObject.isEnableDataPersistence())
+			return;
+		String data = ConfReader.readFile(this.confObject.getDataDir() + "data-" + this.id + ".json");
 		if (data == null || data.length() == 0) {
-			File file = new File(this.dataDir + "data-" + this.id + ".json");
+			File file = new File(this.confObject.getDataDir() + "data-" + this.id + ".json");
 			if (!file.exists()) {
 				try {
 					file.createNewFile();
@@ -266,38 +263,6 @@ public class Accepter {
 			if (value.value != null)
 				this.acceptedValue.put(key, value.value);
 		});
-	}
-
-	/**
-	 * 读取文件
-	 * 
-	 * @param filename
-	 * @return
-	 */
-	private String readFile(String filename) {
-		String ret = "";
-		File file = new File(filename);
-		BufferedReader reader = null;
-		try {
-			reader = new BufferedReader(new FileReader(file));
-			String tempString = null;
-			StringBuffer buffer = new StringBuffer();
-			while ((tempString = reader.readLine()) != null) {
-				buffer.append(tempString);
-			}
-			ret = buffer.toString();
-			reader.close();
-		} catch (IOException e) {
-			// e.printStackTrace();
-		} finally {
-			if (reader != null) {
-				try {
-					reader.close();
-				} catch (IOException e1) {
-				}
-			}
-		}
-		return ret;
 	}
 
 }

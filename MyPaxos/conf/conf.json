@@ -11,5 +11,6 @@
     }],
     "myid" : 2,
     "timeout" : 1000,
-    "dataDir" : "./dataDir/"
+    "dataDir" : "./dataDir/",
+    "enableDataPersistence" : false
 }

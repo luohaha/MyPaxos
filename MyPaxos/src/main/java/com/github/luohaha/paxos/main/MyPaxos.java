@@ -69,7 +69,7 @@ public class MyPaxos {
 		List<InfoObject> proposers = getProposerList();
 		InfoObject myProposer = getMy(proposers);
 		// 启动accepter
-		Accepter accepter = new Accepter(myAccepter.getId(), proposers, myAccepter, confObject.getDataDir());
+		Accepter accepter = new Accepter(myAccepter.getId(), proposers, myAccepter, confObject);
 		accepter.start();
 		// 启动proposer
 		Proposer proposer = new Proposer(myProposer.getId(), accepters, myProposer, this.confObject.getTimeout(), accepter);

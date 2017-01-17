@@ -16,7 +16,11 @@ public class ConfReader {
 	 * @return
 	 */
 	private static ConfObject read(String filename) {
-		return new Gson().fromJson(readFile(filename), ConfObject.class);
+		String data = readFile(filename);
+		if (data == null || data.length() == 0) {
+			System.err.println("配置文件出错 - " + filename);
+		}
+		return new Gson().fromJson(data, ConfObject.class);
 	}
 	/**
 	 * 读取文件中的内容，返回字符串
@@ -37,7 +41,7 @@ public class ConfReader {
             ret = buffer.toString();
             reader.close();  
         } catch (IOException e) {  
-            e.printStackTrace();  
+            //e.printStackTrace();  
         } finally {
             if (reader != null) {  
                 try {  
