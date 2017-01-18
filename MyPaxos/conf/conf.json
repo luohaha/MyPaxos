@@ -8,9 +8,15 @@
         "id" : 2,
         "host" : "localhost",
         "port" : 33343
+    },
+    {
+        "id" : 3,
+        "host" : "localhost",
+        "port" : 33353
     }],
-    "myid" : 2,
+    "myid" : 1,
     "timeout" : 1000,
+    "learningInterval" : 1000,
     "dataDir" : "./dataDir/",
-    "enableDataPersistence" : false
+    "enableDataPersistence" : true
 }

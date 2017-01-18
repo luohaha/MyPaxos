@@ -9,6 +9,7 @@ import javax.sound.midi.MidiDevice.Info;
 import com.github.luohaha.paxos.core.Accepter;
 import com.github.luohaha.paxos.core.ConfObject;
 import com.github.luohaha.paxos.core.InfoObject;
+import com.github.luohaha.paxos.core.Learner;
 import com.github.luohaha.paxos.core.Proposer;
 import com.github.luohaha.paxos.utils.CommServer;
 import com.github.luohaha.paxos.utils.CommServerImpl;
@@ -42,11 +43,7 @@ public class MyPaxos {
 	 * @return
 	 */
 	private List<InfoObject> getAccepterList() {
-		List<InfoObject> list = new ArrayList<>();
-		confObject.getNodes().forEach((info) -> {
-			list.add(new InfoObject(info.getId(), info.getHost(), info.getPort() + 1));
-		});
-		return list;
+		return getSpecList(1);
 	}
 	
 	/**
@@ -54,9 +51,26 @@ public class MyPaxos {
 	 * @return
 	 */
 	private List<InfoObject> getProposerList() {
+		return getSpecList(2);
+	}
+	
+	/**
+	 * 获得全部的learner信息
+	 * @return
+	 */
+	private List<InfoObject> getLearnerList() {
+		return getSpecList(3);
+	}
+	
+	/**
+	 * 获取特定端口偏移的队列
+	 * @param delay
+	 * @return
+	 */
+	private List<InfoObject> getSpecList(int delay) {
 		List<InfoObject> list = new ArrayList<>();
 		confObject.getNodes().forEach((info) -> {
-			list.add(new InfoObject(info.getId(), info.getHost(), info.getPort() + 2));
+			list.add(new InfoObject(info.getId(), info.getHost(), info.getPort() + delay));
 		});
 		return list;
 	}
@@ -68,17 +82,23 @@ public class MyPaxos {
 		InfoObject myAccepter = getMy(accepters);
 		List<InfoObject> proposers = getProposerList();
 		InfoObject myProposer = getMy(proposers);
+		List<InfoObject> learners = getLearnerList();
+		InfoObject myLearner = getMy(learners);
 		// 启动accepter
 		Accepter accepter = new Accepter(myAccepter.getId(), proposers, myAccepter, confObject);
 		accepter.start();
 		// 启动proposer
 		Proposer proposer = new Proposer(myProposer.getId(), accepters, myProposer, this.confObject.getTimeout(), accepter);
 		proposer.start();
+		// 启动learner
+		Learner learner = new Learner(myLearner.getId(), learners, myLearner, confObject, accepter);
+		learner.start();
+		// 启动paxos服务器
 		CommServer server = new CommServerImpl(getMy(this.confObject.getNodes()).getPort());
-		System.out.println("paxos node start...");
+		System.out.println("paxos server-" + confObject.getMyid() + " start...");
 		while (true) {
 			byte[] data = server.recvFrom();
-			System.out.println("submit " + proposer.submit(new String(data)));
+			proposer.submit(new String(data));
 		}
 	}
 }

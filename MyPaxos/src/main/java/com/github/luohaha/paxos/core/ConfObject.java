@@ -9,6 +9,7 @@ public class ConfObject {
 	private List<InfoObject> nodes = new ArrayList<>();
 	private int myid;
 	private int timeout;
+	private int learningInterval;
 	private String dataDir;
 	private boolean enableDataPersistence;
 
@@ -53,6 +54,14 @@ public class ConfObject {
 
 	public void setEnableDataPersistence(boolean enableDataPersistence) {
 		this.enableDataPersistence = enableDataPersistence;
+	}
+
+	public int getLearningInterval() {
+		return learningInterval;
+	}
+
+	public void setLearningInterval(int learningInterval) {
+		this.learningInterval = learningInterval;
 	}
 	
 }

@@ -17,6 +17,6 @@ import com.google.gson.Gson;
 public class ClientTest {
 	public static void main(String[] args) throws UnknownHostException, IOException {
 		MyPaxosClient client = new MyPaxosClient("localhost", 33333);
-		client.submit("hello paxos!");
+		client.submit("hello paxos1");
 	}
 }
