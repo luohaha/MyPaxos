@@ -21,7 +21,7 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 public class Accepter {
-	class Instance {
+	static class Instance {
 		// current ballot number
 		private int ballot;
 		// accepted value
@@ -34,6 +34,10 @@ public class Accepter {
 			this.ballot = ballot;
 			this.value = value;
 			this.acceptedBallot = acceptedBallot;
+		}
+
+		public void setValue(Object value) {
+			this.value = value;
 		}
 	}
 
@@ -71,13 +75,10 @@ public class Accepter {
 			try {
 				CommServer server = new CommServerImpl(my.getPort());
 				Gson gson = new Gson();
-				System.out.println("accepter-" + my.getId() + " start!");
+				System.out.println("accepter-" + my.getId() + " start...");
 				while (true) {
 					byte[] data = server.recvFrom();
 					PacketBean bean = gson.fromJson(new String(data), PacketBean.class);
-					// System.out.println("accepter-" + my.getId() + " " +
-					// gson.toJson(bean));
-					System.out.println(gson.toJson(this.instanceState));
 					switch (bean.getType()) {
 					case "PreparePacket":
 						PreparePacket preparePacket = gson.fromJson(bean.getData(), PreparePacket.class);
@@ -229,7 +230,7 @@ public class Accepter {
 		if (!this.confObject.isEnableDataPersistence())
 			return;
 		try {
-			FileWriter fileWriter = new FileWriter(this.confObject.getDataDir() + "data-" + this.id + ".json");
+			FileWriter fileWriter = new FileWriter(this.confObject.getDataDir() + "accepter-" + this.id + ".json");
 			fileWriter.write(new Gson().toJson(this.instanceState));
 			fileWriter.flush();
 			fileWriter.close();
@@ -245,9 +246,9 @@ public class Accepter {
 	private void instanceRecover() {
 		if (!this.confObject.isEnableDataPersistence())
 			return;
-		String data = ConfReader.readFile(this.confObject.getDataDir() + "data-" + this.id + ".json");
+		String data = ConfReader.readFile(this.confObject.getDataDir() + "accepter-" + this.id + ".json");
 		if (data == null || data.length() == 0) {
-			File file = new File(this.confObject.getDataDir() + "data-" + this.id + ".json");
+			File file = new File(this.confObject.getDataDir() + "accepter-" + this.id + ".json");
 			if (!file.exists()) {
 				try {
 					file.createNewFile();
@@ -263,6 +264,14 @@ public class Accepter {
 			if (value.value != null)
 				this.acceptedValue.put(key, value.value);
 		});
+	}
+
+	public Map<Integer, Object> getAcceptedValue() {
+		return acceptedValue;
+	}
+
+	public Map<Integer, Instance> getInstanceState() {
+		return instanceState;
 	}
 
 }

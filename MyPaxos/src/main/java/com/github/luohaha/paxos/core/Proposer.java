@@ -112,11 +112,10 @@ public class Proposer {
 			try {
 				CommServer server = new CommServerImpl(my.getPort());
 				Gson gson = new Gson();
-				System.out.println("proposer-" + my.getId() + " start!");
+				System.out.println("proposer-" + my.getId() + " start...");
 				while (true) {
 					byte[] data = server.recvFrom();
 					PacketBean bean = gson.fromJson(new String(data), PacketBean.class);
-					System.out.println("proposer-" + my.getId() + " " + gson.toJson(bean));
 					switch (bean.getType()) {
 					case "PrepareResponsePacket":
 						PrepareResponsePacket prepareResponsePacket = gson.fromJson(bean.getData(),
@@ -167,7 +166,6 @@ public class Proposer {
 		Instance instance = new Instance(1, new HashSet<>(), null, 0, new HashSet<>(), false,
 				Proposer_State.READY);
 		this.instanceState.put(this.currentInstance, instance);
-		System.out.println(this.isLastSumbitSucc);
 		if (this.isLastSumbitSucc == false) {
 			// 执行完整的流程
 			prepare(this.id, this.currentInstance, 1);
