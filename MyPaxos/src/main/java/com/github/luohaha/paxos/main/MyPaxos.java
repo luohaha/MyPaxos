@@ -10,6 +10,7 @@ import com.github.luohaha.paxos.core.Accepter;
 import com.github.luohaha.paxos.core.ConfObject;
 import com.github.luohaha.paxos.core.InfoObject;
 import com.github.luohaha.paxos.core.Learner;
+import com.github.luohaha.paxos.core.PaxosExecutor;
 import com.github.luohaha.paxos.core.Proposer;
 import com.github.luohaha.paxos.utils.CommServer;
 import com.github.luohaha.paxos.utils.CommServerImpl;
@@ -18,10 +19,19 @@ import com.google.gson.Gson;
 
 public class MyPaxos {
 	
+	/**
+	 * 全局配置文件信息
+	 */
 	private ConfObject confObject;
 	
-	public MyPaxos() {
+	/**
+	 * paxos状态执行者
+	 */
+	private PaxosExecutor executor;
+
+	public MyPaxos(PaxosExecutor executor) {
 		super();
+		this.executor = executor;
 	}
 
 	/**
@@ -91,7 +101,7 @@ public class MyPaxos {
 		Proposer proposer = new Proposer(myProposer.getId(), accepters, myProposer, this.confObject.getTimeout(), accepter);
 		proposer.start();
 		// 启动learner
-		Learner learner = new Learner(myLearner.getId(), learners, myLearner, confObject, accepter);
+		Learner learner = new Learner(myLearner.getId(), learners, myLearner, confObject, accepter, this.executor);
 		learner.start();
 		// 启动paxos服务器
 		CommServer server = new CommServerImpl(getMy(this.confObject.getNodes()).getPort());

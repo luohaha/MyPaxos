@@ -47,13 +47,27 @@ public class Learner {
 	// learner配置信息
 	private InfoObject my;
 
+	/**
+	 * 全局配置文件信息
+	 */
 	private ConfObject confObject;
 
+	/**
+	 * 当前节点的accepter
+	 */
 	private Accepter accepter;
 
+	/**
+	 * 定时线程
+	 */
 	private ScheduledExecutorService service = Executors.newScheduledThreadPool(1);
+	
+	/**
+	 * 状态执行者
+	 */
+	private PaxosExecutor executor;
 
-	public Learner(int id, List<InfoObject> learners, InfoObject my, ConfObject confObject, Accepter accepter) {
+	public Learner(int id, List<InfoObject> learners, InfoObject my, ConfObject confObject, Accepter accepter, PaxosExecutor executor) {
 		super();
 		this.id = id;
 		this.accepterNum = learners.size();
@@ -61,6 +75,7 @@ public class Learner {
 		this.my = my;
 		this.confObject = confObject;
 		this.accepter = accepter;
+		this.executor = executor;
 	}
 
 	public void start() {
@@ -193,8 +208,9 @@ public class Learner {
 					acceptInstance.setValue(k);
 				}
 				if (instance == currentInstance) {
+					// 调用paxos状态执行者
+					this.executor.execute(k);
 					currentInstance++;
-					System.out.println("instance-" + instance + " : " + k);
 				}
 			}
 		});
