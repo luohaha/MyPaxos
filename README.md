@@ -8,20 +8,19 @@ My multi-paxos service implement :-)
 
 ## 总体架构和流程示意图
 
-1. paxos服务器和客户端
+* paxos服务器和客户端
 
 ![](http://7xrlnt.com1.z0.glb.clouddn.com/mypaxos.png)
 
-
-2. paxos协议的提交流程
+* paxos协议的提交流程
 
 ![](http://7xrlnt.com1.z0.glb.clouddn.com/mypaxos-2.png)
 
-3. 多个instance的确认
+* 多个instance的确认
 
 ![](http://7xrlnt.com1.z0.glb.clouddn.com/mypaxos-3.png)
 
-4. learner的学习
+* learner的学习
 
 ![](http://7xrlnt.com1.z0.glb.clouddn.com/mypaxos-4.png)
 
