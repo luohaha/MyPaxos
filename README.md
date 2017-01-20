@@ -41,6 +41,11 @@ paxos协议保证在每一轮的提案中，只要某一个提案被大于半数
 
 ## 使用
 
+使用MyPaxos协议服务，需要下面几步：
+* 实现提交成功时需要执行的回调函数`PaxosCallback`
+* 在各个节点上修改配置文件，启动paxos服务器
+* 启动客户端，执行提交请求
+
 我在这里使用MyPaxos来实现一个分布式的简单kv存储。
 
 * 配置文件信息
@@ -72,11 +77,10 @@ paxos协议保证在每一轮的提案中，只要某一个提案被大于半数
 }
 ```
 
-* 实现状态成功执行接口
+* 提交成功后的回调函数
 
 ```java
-public class KvExecutor implements PaxosExecutor {
-	
+public class KvCallback implements PaxosCallback {
 	/**
 	 * 使用map来保存key与value映射
 	 */
@@ -84,12 +88,9 @@ public class KvExecutor implements PaxosExecutor {
 	private Gson gson = new Gson();
 
 	@Override
-	public void execute(String msg) {
+	public void callback(String msg) {
 		/**
-		 * 一共提供了三种动作：
-		 * get : 获取
-		 * put : 添加
-		 * delete : 删除
+		 * 一共提供了三种动作： get : 获取 put : 添加 delete : 删除
 		 */
 		MsgBean bean = gson.fromJson(msg, MsgBean.class);
 		switch (bean.getType()) {
@@ -151,8 +152,9 @@ public class MsgBean {
 * 启动服务器
 
 ```java
-public static void main(String[] args) {
-		MyPaxos server = new MyPaxos(new KvExecutor());
+public class ServerTest {
+	public static void main(String[] args) {
+		MyPaxos server = new MyPaxos(new KvCallback(), "./conf/conf.json");
 		try {
 			server.start();
 		} catch (IOException | InterruptedException e) {
@@ -160,6 +162,7 @@ public static void main(String[] args) {
 			e.printStackTrace();
 		}
 	}
+}
 ```
 
 * 启动客户端，并发送请求
@@ -183,6 +186,36 @@ public class ClientTest {
 ```
 
 * 结果
+
+节点1
+
+```
+learner-1 start...
+proposer-1 start...
+accepter-1 start...
+paxos server-1 start...
+ok
+ok
+Mike
+ok
+null
+```
+
+节点2
+
+```
+learner-2 start...
+paxos server-2 start...
+proposer-2 start...
+accepter-2 start...
+ok
+ok
+Mike
+ok
+null
+```
+
+节点3
 
 ```
 learner-3 start...
