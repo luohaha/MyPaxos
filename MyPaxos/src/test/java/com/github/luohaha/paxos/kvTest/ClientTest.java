@@ -1,11 +1,15 @@
 package com.github.luohaha.paxos.kvTest;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 
 import com.github.luohaha.paxos.main.MyPaxosClient;
+import com.github.luohaha.paxos.utils.CommClient;
+import com.github.luohaha.paxos.utils.CommClientImpl;
 import com.google.gson.Gson;
 
 public class ClientTest {
+
 	public static void main(String[] args) {
 		MyPaxosClient client = new MyPaxosClient("localhost", 33333);
 		try {

@@ -3,11 +3,14 @@ package com.github.luohaha.paxos.kvTest;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.github.luohaha.paxos.core.PaxosExecutor;
+import com.github.luohaha.paxos.core.PaxosCallback;
+import com.github.luohaha.paxos.utils.CommClient;
+import com.github.luohaha.paxos.utils.CommClientImpl;
+import com.github.luohaha.paxos.utils.CommServer;
+import com.github.luohaha.paxos.utils.CommServerImpl;
 import com.google.gson.Gson;
 
-public class KvExecutor implements PaxosExecutor {
-	
+public class KvCallback implements PaxosCallback {
 	/**
 	 * 使用map来保存key与value映射
 	 */
@@ -15,12 +18,9 @@ public class KvExecutor implements PaxosExecutor {
 	private Gson gson = new Gson();
 
 	@Override
-	public void execute(String msg) {
+	public void callback(String msg) {
 		/**
-		 * 一共提供了三种动作：
-		 * get : 获取
-		 * put : 添加
-		 * delete : 删除
+		 * 一共提供了三种动作： get : 获取 put : 添加 delete : 删除
 		 */
 		MsgBean bean = gson.fromJson(msg, MsgBean.class);
 		switch (bean.getType()) {

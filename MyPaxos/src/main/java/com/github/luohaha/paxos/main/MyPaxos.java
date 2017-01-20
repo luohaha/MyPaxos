@@ -10,7 +10,7 @@ import com.github.luohaha.paxos.core.Accepter;
 import com.github.luohaha.paxos.core.ConfObject;
 import com.github.luohaha.paxos.core.InfoObject;
 import com.github.luohaha.paxos.core.Learner;
-import com.github.luohaha.paxos.core.PaxosExecutor;
+import com.github.luohaha.paxos.core.PaxosCallback;
 import com.github.luohaha.paxos.core.Proposer;
 import com.github.luohaha.paxos.utils.CommServer;
 import com.github.luohaha.paxos.utils.CommServerImpl;
@@ -27,11 +27,17 @@ public class MyPaxos {
 	/**
 	 * paxos状态执行者
 	 */
-	private PaxosExecutor executor;
+	private PaxosCallback executor;
+	
+	/**
+	 * 配置文件所在的位置
+	 */
+	private String confFile;
 
-	public MyPaxos(PaxosExecutor executor) {
+	public MyPaxos(PaxosCallback executor, String confFile) {
 		super();
 		this.executor = executor;
+		this.confFile = confFile;
 	}
 
 	/**
@@ -87,7 +93,7 @@ public class MyPaxos {
 	
 	public void start() throws IOException, InterruptedException {
 		Gson gson = new Gson();
-		this.confObject = gson.fromJson(ConfReader.readFile("./conf/conf.json"), ConfObject.class);
+		this.confObject = gson.fromJson(ConfReader.readFile(this.confFile), ConfObject.class);
 		List<InfoObject> accepters = getAccepterList();
 		InfoObject myAccepter = getMy(accepters);
 		List<InfoObject> proposers = getProposerList();

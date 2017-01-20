@@ -65,9 +65,9 @@ public class Learner {
 	/**
 	 * 状态执行者
 	 */
-	private PaxosExecutor executor;
+	private PaxosCallback executor;
 
-	public Learner(int id, List<InfoObject> learners, InfoObject my, ConfObject confObject, Accepter accepter, PaxosExecutor executor) {
+	public Learner(int id, List<InfoObject> learners, InfoObject my, ConfObject confObject, Accepter accepter, PaxosCallback executor) {
 		super();
 		this.id = id;
 		this.accepterNum = learners.size();
@@ -209,7 +209,7 @@ public class Learner {
 				}
 				if (instance == currentInstance) {
 					// 调用paxos状态执行者
-					this.executor.execute(k);
+					this.executor.callback(k);
 					currentInstance++;
 				}
 			}

@@ -173,7 +173,6 @@ public class Accepter {
 			if (ballot == current.ballot) {
 				current.acceptedBallot = ballot;
 				current.value = value;
-				acceptResponse(peerId, id, instance, true);
 				// 成功
 				this.acceptedValue.put(instance, value);
 				if (!this.instanceState.containsKey(instance + 1)) {
@@ -184,6 +183,7 @@ public class Accepter {
 				this.lastInstanceId = instance;
 				// 持久化到磁盘
 				instancePersistence();
+				acceptResponse(peerId, id, instance, true);
 			} else {
 				acceptResponse(peerId, id, instance, false);
 			}
