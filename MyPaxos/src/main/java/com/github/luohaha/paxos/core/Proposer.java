@@ -24,6 +24,7 @@ import com.github.luohaha.paxos.utils.CommClient;
 import com.github.luohaha.paxos.utils.CommClientImpl;
 import com.github.luohaha.paxos.utils.CommServer;
 import com.github.luohaha.paxos.utils.CommServerImpl;
+import com.github.luohaha.paxos.utils.NonBlockServerImpl;
 import com.google.gson.Gson;
 
 public class Proposer {
@@ -110,7 +111,8 @@ public class Proposer {
 	public void start() {
 		new Thread(() -> {
 			try {
-				CommServer server = new CommServerImpl(my.getPort());
+				//CommServer server = new CommServerImpl(my.getPort());
+				CommServer server = new NonBlockServerImpl(my.getPort());
 				Gson gson = new Gson();
 				System.out.println("proposer-" + my.getId() + " start...");
 				while (true) {

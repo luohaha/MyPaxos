@@ -21,6 +21,7 @@ import com.github.luohaha.paxos.utils.CommClientImpl;
 import com.github.luohaha.paxos.utils.CommServer;
 import com.github.luohaha.paxos.utils.CommServerImpl;
 import com.github.luohaha.paxos.utils.ConfReader;
+import com.github.luohaha.paxos.utils.NonBlockServerImpl;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
@@ -82,7 +83,8 @@ public class Learner {
 		System.out.println("learner-" + my.getId() + " start...");
 		new Thread(() -> {
 			try {
-				CommServer server = new CommServerImpl(my.getPort());
+				//CommServer server = new CommServerImpl(my.getPort());
+				CommServer server = new NonBlockServerImpl(my.getPort());
 				Gson gson = new Gson();
 				while (true) {
 					byte[] data = server.recvFrom();

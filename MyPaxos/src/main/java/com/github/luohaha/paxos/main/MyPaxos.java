@@ -15,6 +15,7 @@ import com.github.luohaha.paxos.core.Proposer;
 import com.github.luohaha.paxos.utils.CommServer;
 import com.github.luohaha.paxos.utils.CommServerImpl;
 import com.github.luohaha.paxos.utils.ConfReader;
+import com.github.luohaha.paxos.utils.NonBlockServerImpl;
 import com.google.gson.Gson;
 
 public class MyPaxos {
@@ -110,7 +111,7 @@ public class MyPaxos {
 		Learner learner = new Learner(myLearner.getId(), learners, myLearner, confObject, accepter, this.executor);
 		learner.start();
 		// 启动paxos服务器
-		CommServer server = new CommServerImpl(getMy(this.confObject.getNodes()).getPort());
+		CommServer server = new NonBlockServerImpl(getMy(this.confObject.getNodes()).getPort());
 		System.out.println("paxos server-" + confObject.getMyid() + " start...");
 		while (true) {
 			byte[] data = server.recvFrom();
