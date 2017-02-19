@@ -7,8 +7,12 @@ import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+
 import com.github.luohaha.paxos.packet.AcceptPacket;
 import com.github.luohaha.paxos.packet.AcceptResponsePacket;
+import com.github.luohaha.paxos.packet.Packet;
 import com.github.luohaha.paxos.packet.PacketBean;
 import com.github.luohaha.paxos.packet.PreparePacket;
 import com.github.luohaha.paxos.packet.PrepareResponsePacket;
@@ -56,51 +60,65 @@ public class Accepter {
 	private int lastInstanceId = 0;
 	// 配置文件
 	private ConfObject confObject;
+	// 组id
+	private int groupId;
 
-	public Accepter(int id, List<InfoObject> proposers, InfoObject my, ConfObject confObject) {
+	private Gson gson = new Gson();
+
+	// 消息队列，保存packetbean
+	private BlockingQueue<PacketBean> msgQueue = new LinkedBlockingQueue<>();
+
+	public Accepter(int id, List<InfoObject> proposers, InfoObject my, ConfObject confObject, int groupId) {
 		this.id = id;
 		this.proposers = proposers;
 		this.my = my;
 		this.confObject = confObject;
+		this.groupId = groupId;
 		instanceRecover();
+		new Thread(() -> {
+			while (true) {
+				try {
+					PacketBean msg = msgQueue.take();
+					recvPacket(msg);
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+		}).start();
+	}
+	
+	/**
+	 * 向消息队列中插入packetbean
+	 * @param bean
+	 * @throws InterruptedException
+	 */
+	public void sendPacket(PacketBean bean) throws InterruptedException {
+		this.msgQueue.put(bean);
 	}
 
 	/**
-	 * start this node
+	 * 处理接收到的packetbean
 	 * 
+	 * @param bean
+	 * @throws UnknownHostException
 	 * @throws IOException
-	 * @throws InterruptedException
 	 */
-	public void start() {
-		new Thread(() -> {
-			try {
-				//CommServer server = new CommServerImpl(my.getPort());
-				CommServer server = new NonBlockServerImpl(my.getPort());
-				Gson gson = new Gson();
-				System.out.println("accepter-" + my.getId() + " start...");
-				while (true) {
-					byte[] data = server.recvFrom();
-					PacketBean bean = gson.fromJson(new String(data), PacketBean.class);
-					switch (bean.getType()) {
-					case "PreparePacket":
-						PreparePacket preparePacket = gson.fromJson(bean.getData(), PreparePacket.class);
-						onPrepare(preparePacket.getPeerId(), preparePacket.getInstance(), preparePacket.getBallot());
-						break;
-					case "AcceptPacket":
-						AcceptPacket acceptPacket = gson.fromJson(bean.getData(), AcceptPacket.class);
-						onAccept(acceptPacket.getId(), acceptPacket.getInstance(), acceptPacket.getBallot(),
-								acceptPacket.getValue());
-						break;
-					default:
-						System.out.println("unknown type!!!");
-						break;
-					}
-				}
-			} catch (Exception e) {
-				// TODO: handle exception
-				e.printStackTrace();
-			}
-		}).start();
+	public void recvPacket(PacketBean bean) throws UnknownHostException, IOException {
+		switch (bean.getType()) {
+		case "PreparePacket":
+			PreparePacket preparePacket = gson.fromJson(bean.getData(), PreparePacket.class);
+			onPrepare(preparePacket.getPeerId(), preparePacket.getInstance(), preparePacket.getBallot());
+			break;
+		case "AcceptPacket":
+			AcceptPacket acceptPacket = gson.fromJson(bean.getData(), AcceptPacket.class);
+			onAccept(acceptPacket.getId(), acceptPacket.getInstance(), acceptPacket.getBallot(),
+					acceptPacket.getValue());
+			break;
+		default:
+			System.out.println("unknown type!!!");
+			break;
+		}
 	}
 
 	/**
@@ -148,11 +166,11 @@ public class Accepter {
 	private void prepareResponse(int peerId, int id, int instance, boolean ok, int ab, Object av)
 			throws UnknownHostException, IOException {
 		CommClient client = new CommClientImpl();
-		Gson gson = new Gson();
 		PacketBean bean = new PacketBean("PrepareResponsePacket",
 				gson.toJson(new PrepareResponsePacket(id, instance, ok, ab, av)));
 		InfoObject peer = getSpecInfoObect(peerId);
-		client.sendTo(peer.getHost(), peer.getPort(), gson.toJson(bean).getBytes());
+		client.sendTo(peer.getHost(), peer.getPort(),
+				gson.toJson(new Packet(bean, groupId, WorkerType.PROPOSER)).getBytes());
 	}
 
 	/**
@@ -194,11 +212,11 @@ public class Accepter {
 
 	private void acceptResponse(int peerId, int id, int instance, boolean ok) throws UnknownHostException, IOException {
 		CommClient client = new CommClientImpl();
-		Gson gson = new Gson();
 		InfoObject infoObject = getSpecInfoObect(peerId);
 		PacketBean bean = new PacketBean("AcceptResponsePacket",
 				gson.toJson(new AcceptResponsePacket(id, instance, ok)));
-		client.sendTo(infoObject.getHost(), infoObject.getPort(), new Gson().toJson(gson.toJsonTree(bean)).getBytes());
+		client.sendTo(infoObject.getHost(), infoObject.getPort(),
+				gson.toJson(new Packet(bean, groupId, WorkerType.PROPOSER)).getBytes());
 	}
 
 	/**
@@ -232,8 +250,8 @@ public class Accepter {
 		if (!this.confObject.isEnableDataPersistence())
 			return;
 		try {
-			FileWriter fileWriter = new FileWriter(this.confObject.getDataDir() + "accepter-" + this.id + ".json");
-			fileWriter.write(new Gson().toJson(this.instanceState));
+			FileWriter fileWriter = new FileWriter(getInstanceFileAddr());
+			fileWriter.write(gson.toJson(this.instanceState));
 			fileWriter.flush();
 			fileWriter.close();
 		} catch (IOException e) {
@@ -248,9 +266,9 @@ public class Accepter {
 	private void instanceRecover() {
 		if (!this.confObject.isEnableDataPersistence())
 			return;
-		String data = ConfReader.readFile(this.confObject.getDataDir() + "accepter-" + this.id + ".json");
+		String data = ConfReader.readFile(getInstanceFileAddr());
 		if (data == null || data.length() == 0) {
-			File file = new File(this.confObject.getDataDir() + "accepter-" + this.id + ".json");
+			File file = new File(getInstanceFileAddr());
 			if (!file.exists()) {
 				try {
 					file.createNewFile();
@@ -261,11 +279,20 @@ public class Accepter {
 			}
 			return;
 		}
-		this.instanceState.putAll(new Gson().fromJson(data, new TypeToken<Map<Integer, Instance>>() {}.getType()));
+		this.instanceState.putAll(gson.fromJson(data, new TypeToken<Map<Integer, Instance>>() {
+		}.getType()));
 		this.instanceState.forEach((key, value) -> {
 			if (value.value != null)
 				this.acceptedValue.put(key, value.value);
 		});
+	}
+	
+	/**
+	 * 获取instance持久化的文件位置
+	 * @return
+	 */
+	private String getInstanceFileAddr() {
+		return this.confObject.getDataDir() + "accepter-" + this.groupId + "-" + this.id + ".json";
 	}
 
 	public Map<Integer, Object> getAcceptedValue() {

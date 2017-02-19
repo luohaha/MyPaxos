@@ -8,13 +8,16 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import com.github.luohaha.paxos.core.Accepter.Instance;
 import com.github.luohaha.paxos.packet.LearnRequest;
 import com.github.luohaha.paxos.packet.LearnResponse;
+import com.github.luohaha.paxos.packet.Packet;
 import com.github.luohaha.paxos.packet.PacketBean;
 import com.github.luohaha.paxos.utils.CommClient;
 import com.github.luohaha.paxos.utils.CommClientImpl;
@@ -62,13 +65,22 @@ public class Learner {
 	 * 定时线程
 	 */
 	private ScheduledExecutorService service = Executors.newScheduledThreadPool(1);
-	
+
 	/**
 	 * 状态执行者
 	 */
 	private PaxosCallback executor;
 
-	public Learner(int id, List<InfoObject> learners, InfoObject my, ConfObject confObject, Accepter accepter, PaxosCallback executor) {
+	// 组id
+	private int groupId;
+
+	private Gson gson = new Gson();
+	
+	// 消息队列，保存packetbean
+	private BlockingQueue<PacketBean> msgQueue = new LinkedBlockingQueue<>();
+
+	public Learner(int id, List<InfoObject> learners, InfoObject my, ConfObject confObject, Accepter accepter,
+			PaxosCallback executor, int groupId) {
 		super();
 		this.id = id;
 		this.accepterNum = learners.size();
@@ -77,45 +89,55 @@ public class Learner {
 		this.confObject = confObject;
 		this.accepter = accepter;
 		this.executor = executor;
-	}
-
-	public void start() {
-		System.out.println("learner-" + my.getId() + " start...");
-		new Thread(() -> {
-			try {
-				//CommServer server = new CommServerImpl(my.getPort());
-				CommServer server = new NonBlockServerImpl(my.getPort());
-				Gson gson = new Gson();
-				while (true) {
-					byte[] data = server.recvFrom();
-					PacketBean bean = gson.fromJson(new String(data), PacketBean.class);
-					switch (bean.getType()) {
-					case "LearnRequest":
-						LearnRequest request = gson.fromJson(bean.getData(), LearnRequest.class);
-						String value = "";
-						if (accepter.getAcceptedValue().containsKey(request.getInstance()))
-							value = accepter.getAcceptedValue().get(request.getInstance()).toString();
-						sendResponse(request.getId(), request.getInstance(), value);
-						break;
-					case "LearnResponse":
-						LearnResponse response = gson.fromJson(bean.getData(), LearnResponse.class);
-						onResponse(response.getId(), response.getInstance(), response.getValue());
-						break;
-					default:
-						System.err.println("Unknown Type!");
-						break;
-					}
-				}
-			} catch (Exception e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-
-		}).start();
+		this.groupId = groupId;
 		service.scheduleAtFixedRate(() -> {
 			// 广播学习请求
 			sendRequest(this.id, this.currentInstance);
 		} , confObject.getLearningInterval(), confObject.getLearningInterval(), TimeUnit.MILLISECONDS);
+		new Thread(() -> {
+			while (true) {
+				try {
+					PacketBean msg = msgQueue.take();
+					recvPacket(msg);
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+		}).start();
+	}
+	
+	/**
+	 * 向消息队列中插入packetbean
+	 * @param bean
+	 * @throws InterruptedException
+	 */
+	public void sendPacket(PacketBean bean) throws InterruptedException {
+		this.msgQueue.put(bean);
+	}
+
+	/**
+	 * 处理接收到的packetbean
+	 * 
+	 * @param bean
+	 */
+	public void recvPacket(PacketBean bean) {
+		switch (bean.getType()) {
+		case "LearnRequest":
+			LearnRequest request = gson.fromJson(bean.getData(), LearnRequest.class);
+			String value = "";
+			if (accepter.getAcceptedValue().containsKey(request.getInstance()))
+				value = accepter.getAcceptedValue().get(request.getInstance()).toString();
+			sendResponse(request.getId(), request.getInstance(), value);
+			break;
+		case "LearnResponse":
+			LearnResponse response = gson.fromJson(bean.getData(), LearnResponse.class);
+			onResponse(response.getId(), response.getInstance(), response.getValue());
+			break;
+		default:
+			System.err.println("Unknown Type!");
+			break;
+		}
 	}
 
 	/**
@@ -126,8 +148,8 @@ public class Learner {
 	private void sendRequest(int id, int instance) {
 		this.tmpState.remove(instance);
 		CommClient client = new CommClientImpl();
-		Gson gson = new Gson();
-		String data = gson.toJson(new PacketBean("LearnRequest", gson.toJson(new LearnRequest(id, instance))));
+		PacketBean packetBean = new PacketBean("LearnRequest", gson.toJson(new LearnRequest(id, instance)));
+		String data = gson.toJson(new Packet(packetBean, this.groupId, WorkerType.LEARNER));
 		learners.forEach((info) -> {
 			try {
 				client.sendTo(info.getHost(), info.getPort(), data.getBytes());
@@ -149,11 +171,11 @@ public class Learner {
 	private void sendResponse(int peerId, int instance, String value) {
 		InfoObject peer = getSpecLearner(peerId);
 		CommClient client = new CommClientImpl();
-		Gson gson = new Gson();
 		try {
+			PacketBean packetBean = new PacketBean("LearnResponse",
+					gson.toJson(new LearnResponse(id, instance, value)));
 			client.sendTo(peer.getHost(), peer.getPort(),
-					gson.toJson(new PacketBean("LearnResponse", gson.toJson(new LearnResponse(id, instance, value))))
-							.getBytes());
+					gson.toJson(new Packet(packetBean, this.groupId, WorkerType.LEARNER)).getBytes());
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

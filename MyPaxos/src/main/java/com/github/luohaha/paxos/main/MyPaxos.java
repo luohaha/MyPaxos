@@ -2,7 +2,9 @@ package com.github.luohaha.paxos.main;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.sound.midi.MidiDevice.Info;
 
@@ -12,6 +14,7 @@ import com.github.luohaha.paxos.core.InfoObject;
 import com.github.luohaha.paxos.core.Learner;
 import com.github.luohaha.paxos.core.PaxosCallback;
 import com.github.luohaha.paxos.core.Proposer;
+import com.github.luohaha.paxos.packet.Packet;
 import com.github.luohaha.paxos.utils.CommServer;
 import com.github.luohaha.paxos.utils.CommServerImpl;
 import com.github.luohaha.paxos.utils.ConfReader;
@@ -19,30 +22,57 @@ import com.github.luohaha.paxos.utils.NonBlockServerImpl;
 import com.google.gson.Gson;
 
 public class MyPaxos {
-	
+
 	/**
 	 * 全局配置文件信息
 	 */
 	private ConfObject confObject;
 	
 	/**
-	 * paxos状态执行者
+	 * 本节点的信息
 	 */
-	private PaxosCallback executor;
-	
+	private InfoObject infoObject;
+
 	/**
 	 * 配置文件所在的位置
 	 */
 	private String confFile;
+	
+	private Map<Integer, PaxosCallback> groupidToCallback = new HashMap<>();
+	
+	private Map<Integer, Proposer> groupidToProposer = new HashMap<>();
+	
+	private Map<Integer, Accepter> groupidToAccepter = new HashMap<>();
+	
+	private Map<Integer, Learner> groupidToLearner = new HashMap<>();
+	
+	private Gson gson = new Gson();
 
-	public MyPaxos(PaxosCallback executor, String confFile) {
+	public MyPaxos(String confFile) {
 		super();
-		this.executor = executor;
 		this.confFile = confFile;
+		this.confObject = gson.fromJson(ConfReader.readFile(this.confFile), ConfObject.class);
+		this.infoObject = getMy(this.confObject.getNodes());
+	}
+	
+	/**
+	 * 
+	 * @param id
+	 * @param executor
+	 */
+	public void setGroupId(int groupId, PaxosCallback executor) {
+		Accepter accepter = new Accepter(infoObject.getId(), confObject.getNodes(), infoObject, confObject, groupId);
+		Proposer proposer = new Proposer(infoObject.getId(), confObject.getNodes(), infoObject, confObject.getTimeout(), accepter, groupId);
+		Learner learner = new Learner(infoObject.getId(), confObject.getNodes(), infoObject, confObject, accepter, executor, groupId);
+		this.groupidToCallback.put(groupId, executor);
+		this.groupidToAccepter.put(groupId, accepter);
+		this.groupidToProposer.put(groupId, proposer);
+		this.groupidToLearner.put(groupId, learner);
 	}
 
 	/**
 	 * 获得我的accepter或者proposer信息
+	 * 
 	 * @param accepters
 	 * @return
 	 */
@@ -54,68 +84,43 @@ public class MyPaxos {
 		}
 		return null;
 	}
-	
+
 	/**
-	 * 获得全部的accepter信息
-	 * @return
+	 * 启动paxos服务器
+	 * @throws IOException
+	 * @throws InterruptedException
 	 */
-	private List<InfoObject> getAccepterList() {
-		return getSpecList(1);
-	}
-	
-	/**
-	 * 获得全部的proposer信息
-	 * @return
-	 */
-	private List<InfoObject> getProposerList() {
-		return getSpecList(2);
-	}
-	
-	/**
-	 * 获得全部的learner信息
-	 * @return
-	 */
-	private List<InfoObject> getLearnerList() {
-		return getSpecList(3);
-	}
-	
-	/**
-	 * 获取特定端口偏移的队列
-	 * @param delay
-	 * @return
-	 */
-	private List<InfoObject> getSpecList(int delay) {
-		List<InfoObject> list = new ArrayList<>();
-		confObject.getNodes().forEach((info) -> {
-			list.add(new InfoObject(info.getId(), info.getHost(), info.getPort() + delay));
-		});
-		return list;
-	}
-	
 	public void start() throws IOException, InterruptedException {
-		Gson gson = new Gson();
-		this.confObject = gson.fromJson(ConfReader.readFile(this.confFile), ConfObject.class);
-		List<InfoObject> accepters = getAccepterList();
-		InfoObject myAccepter = getMy(accepters);
-		List<InfoObject> proposers = getProposerList();
-		InfoObject myProposer = getMy(proposers);
-		List<InfoObject> learners = getLearnerList();
-		InfoObject myLearner = getMy(learners);
-		// 启动accepter
-		Accepter accepter = new Accepter(myAccepter.getId(), proposers, myAccepter, confObject);
-		accepter.start();
-		// 启动proposer
-		Proposer proposer = new Proposer(myProposer.getId(), accepters, myProposer, this.confObject.getTimeout(), accepter);
-		proposer.start();
-		// 启动learner
-		Learner learner = new Learner(myLearner.getId(), learners, myLearner, confObject, accepter, this.executor);
-		learner.start();
+		
 		// 启动paxos服务器
-		CommServer server = new NonBlockServerImpl(getMy(this.confObject.getNodes()).getPort());
+		CommServer server = new NonBlockServerImpl(this.infoObject.getPort());
 		System.out.println("paxos server-" + confObject.getMyid() + " start...");
 		while (true) {
 			byte[] data = server.recvFrom();
-			proposer.submit(new String(data));
+			Packet packet = gson.fromJson(new String(data), Packet.class);
+			int groupId = packet.getGroupId();
+			Accepter accepter = this.groupidToAccepter.get(groupId);
+			Proposer proposer = this.groupidToProposer.get(groupId);
+			Learner learner = this.groupidToLearner.get(groupId);
+			if (accepter == null || proposer == null || learner == null) {
+				return;
+			}
+			switch (packet.getWorkerType()) {
+			case ACCEPTER:
+				accepter.sendPacket(packet.getPacketBean());
+				break;
+			case PROPOSER:
+				proposer.sendPacket(packet.getPacketBean());
+				break;
+			case LEARNER:
+				learner.sendPacket(packet.getPacketBean());
+				break;
+			case SERVER:
+				proposer.sendPacket(packet.getPacketBean());
+				break;
+			default:
+				break;
+			}
 		}
 	}
 }

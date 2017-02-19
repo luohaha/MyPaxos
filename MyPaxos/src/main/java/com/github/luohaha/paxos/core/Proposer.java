@@ -17,6 +17,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 import com.github.luohaha.paxos.packet.AcceptPacket;
 import com.github.luohaha.paxos.packet.AcceptResponsePacket;
+import com.github.luohaha.paxos.packet.Packet;
 import com.github.luohaha.paxos.packet.PacketBean;
 import com.github.luohaha.paxos.packet.PreparePacket;
 import com.github.luohaha.paxos.packet.PrepareResponsePacket;
@@ -93,55 +94,84 @@ public class Proposer {
 	//本节点的accepter
 	private Accepter accepter;
 	
-	public Proposer(int id, List<InfoObject> accepters, InfoObject my, int timeout, Accepter accepter) {
+	//组id
+	private int groupId;
+	
+	// 消息队列，保存packetbean
+	private BlockingQueue<PacketBean> msgQueue = new LinkedBlockingQueue<>();
+	
+	private BlockingQueue<PacketBean> submitMsgQueue = new LinkedBlockingQueue<>();
+	
+	private Gson gson = new Gson();
+	
+	public Proposer(int id, List<InfoObject> accepters, InfoObject my, int timeout, Accepter accepter, int groupId) {
 		this.id = id;
 		this.accepters = accepters;
 		this.accepterNum = accepters.size();
 		this.my = my;
 		this.timeout = timeout;
 		this.accepter = accepter;
-	}
-
-	/**
-	 * Start this node
-	 * 
-	 * @throws IOException
-	 * @throws InterruptedException
-	 */
-	public void start() {
+		this.groupId = groupId;
 		new Thread(() -> {
-			try {
-				//CommServer server = new CommServerImpl(my.getPort());
-				CommServer server = new NonBlockServerImpl(my.getPort());
-				Gson gson = new Gson();
-				System.out.println("proposer-" + my.getId() + " start...");
-				while (true) {
-					byte[] data = server.recvFrom();
-					PacketBean bean = gson.fromJson(new String(data), PacketBean.class);
-					switch (bean.getType()) {
-					case "PrepareResponsePacket":
-						PrepareResponsePacket prepareResponsePacket = gson.fromJson(bean.getData(),
-								PrepareResponsePacket.class);
-						onPrepareResponse(prepareResponsePacket.getId(), prepareResponsePacket.getInstance(),
-								prepareResponsePacket.isOk(), prepareResponsePacket.getAb(),
-								prepareResponsePacket.getAv());
-						break;
-					case "AcceptResponsePacket":
-						AcceptResponsePacket acceptResponsePacket = gson.fromJson(bean.getData(),
-								AcceptResponsePacket.class);
-						onAcceptResponce(acceptResponsePacket.getId(), acceptResponsePacket.getInstance(),
-								acceptResponsePacket.isOk());
-						break;
-					default:
-						System.out.println("unknown type!!!");
-						break;
-					}
+			while (true) {
+				try {
+					PacketBean msg = this.msgQueue.take();
+					recvPacket(msg);
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
 				}
-			} catch (Exception e) {
-				e.printStackTrace();
 			}
 		}).start();
-
+		new Thread(() -> {
+			while (true) {
+				try {
+					PacketBean msg = this.submitMsgQueue.take();
+					submit(msg.getData());
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+		}).start();
+	}
+	
+	/**
+	 * 向消息队列中插入packetbean
+	 * @param bean
+	 * @throws InterruptedException
+	 */
+	public void sendPacket(PacketBean bean) throws InterruptedException {
+		this.msgQueue.put(bean);
+	}
+	
+	/**
+	 * 处理接收到的packetbean
+	 * @param bean
+	 * @throws InterruptedException 
+	 */
+	public void recvPacket(PacketBean bean) throws InterruptedException {
+		switch (bean.getType()) {
+		case "PrepareResponsePacket":
+			PrepareResponsePacket prepareResponsePacket = gson.fromJson(bean.getData(),
+					PrepareResponsePacket.class);
+			onPrepareResponse(prepareResponsePacket.getId(), prepareResponsePacket.getInstance(),
+					prepareResponsePacket.isOk(), prepareResponsePacket.getAb(),
+					prepareResponsePacket.getAv());
+			break;
+		case "AcceptResponsePacket":
+			AcceptResponsePacket acceptResponsePacket = gson.fromJson(bean.getData(),
+					AcceptResponsePacket.class);
+			onAcceptResponce(acceptResponsePacket.getId(), acceptResponsePacket.getInstance(),
+					acceptResponsePacket.isOk());
+			break;
+		case "SubmitPacket":
+			this.submitMsgQueue.add(bean);
+			break;
+		default:
+			System.out.println("unknown type!!!");
+			break;
+		}
 	}
 
 	/**
@@ -189,10 +219,9 @@ public class Proposer {
 	private void prepare(int id, int instance, int ballot) {
 		this.instanceState.get(instance).state = Proposer_State.PREPARE;
 		CommClient client = new CommClientImpl();
-		Gson gson = new Gson();
 		this.accepters.forEach((info) -> {
 			PacketBean bean = new PacketBean("PreparePacket", gson.toJson(new PreparePacket(id, instance, ballot)));
-			String msg = gson.toJson(bean);
+			String msg = gson.toJson(new Packet(bean, groupId, WorkerType.ACCEPTER));
 			try {
 				client.sendTo(info.getHost(), info.getPort(), msg.getBytes());
 			} catch (Exception e) {
@@ -261,7 +290,7 @@ public class Proposer {
 		this.accepters.forEach((info) -> {
 			PacketBean bean = new PacketBean("AcceptPacket",
 					gson.toJson(new AcceptPacket(id, instance, ballot, value)));
-			String msg = gson.toJson(bean);
+			String msg = gson.toJson(new Packet(bean, groupId, WorkerType.ACCEPTER));
 			try {
 				client.sendTo(info.getHost(), info.getPort(), msg.getBytes());
 			} catch (Exception e) {

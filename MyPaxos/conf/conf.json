@@ -3,20 +3,18 @@
         "id" : 1,
         "host" : "localhost",
         "port" : 33333
-    },
-    {
+    }, {
         "id" : 2,
         "host" : "localhost",
-        "port" : 33343
-    },
-    {
+        "port" : 33334
+    }, {
         "id" : 3,
         "host" : "localhost",
-        "port" : 33353
+        "port" : 33335
     }],
     "myid" : 1,
     "timeout" : 1000,
     "learningInterval" : 1000,
     "dataDir" : "./dataDir/",
-    "enableDataPersistence" : true
+    "enableDataPersistence" : false
 }
