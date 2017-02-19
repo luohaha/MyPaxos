@@ -9,6 +9,7 @@ My multi-paxos service implement :-)
 * 实现了multi-paxos中连续同一leader提交时，优化协议流程，将prepare和accept流程，优化到只有accept流程。
 * 实现了节点崩溃恢复的机制。
 * 提供了简单的易用的拓展接口给使用者，使用者可以基于此实现基于paxos服务的系统。
+* 提供了分组功能，单个节点上可以设置多个虚拟分组，各个分组之间逻辑独立。
 
 ## paxos协议的简单说明
 
@@ -53,8 +54,7 @@ paxos协议保证在每一轮的提案中，只要某一个提案被大于半数
 ```json
 {
     "nodes" : [{
-        // 节点1，服务器端口为33333，accepter的端口为33334，proposer的端口为33335
-        // learner的端口为33336
+        // 节点1，服务器端口为33333
         "id" : 1,
         "host" : "localhost",
         "port" : 33333
@@ -62,12 +62,12 @@ paxos协议保证在每一轮的提案中，只要某一个提案被大于半数
     {
         "id" : 2,
         "host" : "localhost",
-        "port" : 33343
+        "port" : 33334
     },
     {
         "id" : 3,
         "host" : "localhost",
-        "port" : 33353
+        "port" : 33335
     }],
     "myid" : 1,    //本节点的id
     "timeout" : 1000, //通信超时
@@ -154,7 +154,11 @@ public class MsgBean {
 ```java
 public class ServerTest {
 	public static void main(String[] args) {
-		MyPaxos server = new MyPaxos(new KvCallback(), "./conf/conf.json");
+		MyPaxos server = new MyPaxos("./conf/conf.json");
+		// 设置分组group1
+		server.setGroupId(1, new KvCallback());
+		// 设置分组group2
+		server.setGroupId(2, new KvCallback());
 		try {
 			server.start();
 		} catch (IOException | InterruptedException e) {
@@ -172,11 +176,12 @@ public class ClientTest {
 	public static void main(String[] args) {
 		MyPaxosClient client = new MyPaxosClient("localhost", 33333);
 		try {
-			client.submit(new Gson().toJson(new MsgBean("put", "name", "Mike")));
-			client.submit(new Gson().toJson(new MsgBean("put", "age", "22")));
-			client.submit(new Gson().toJson(new MsgBean("get", "name", "")));
-			client.submit(new Gson().toJson(new MsgBean("delete", "name", "")));
-			client.submit(new Gson().toJson(new MsgBean("get", "name", "")));
+		    // 发往group1
+			client.submit(new Gson().toJson(new MsgBean("put", "name", "Mike")), 1);
+			// 发往group2
+			client.submit(new Gson().toJson(new MsgBean("put", "name", "Neo")), 2);
+			// 发往group1
+			client.submit(new Gson().toJson(new MsgBean("get", "name", "")), 1);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -190,43 +195,28 @@ public class ClientTest {
 节点1
 
 ```
-learner-1 start...
-proposer-1 start...
-accepter-1 start...
 paxos server-1 start...
 ok
 ok
 Mike
-ok
-null
 ```
 
 节点2
 
 ```
-learner-2 start...
 paxos server-2 start...
-proposer-2 start...
-accepter-2 start...
 ok
 ok
 Mike
-ok
-null
 ```
 
 节点3
 
 ```
-learner-3 start...
-proposer-3 start...
-accepter-3 start...
 paxos server-3 start...
 ok
 ok
 Mike
-ok
-null
 ```
 
 ## 参考文献和资料
