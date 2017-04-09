@@ -3,31 +3,29 @@ package com.github.luohaha.paxos.utils;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 
-import com.github.luohaha.paxos.core.ConfObject;
-import com.google.gson.Gson;
-
-public class ConfReader {
-	
+public class FileUtils {
 	/**
-	 * 返回配置文件信息
-	 * @param filename
-	 * @return
+	 * 确保文件存在
+	 * @param addr
+	 * 文件地址
+	 * @throws IOException
 	 */
-	private static ConfObject read(String filename) {
-		String data = readFile(filename);
-		if (data == null || data.length() == 0) {
-			System.err.println("配置文件出错 - " + filename);
+	public static void createFileIfNotExist(String addr) throws IOException {
+		File file = new File(addr);
+		if (!file.exists()) {
+			file.createNewFile();
 		}
-		return new Gson().fromJson(data, ConfObject.class);
 	}
+	
 	/**
 	 * 读取文件中的内容，返回字符串
 	 * @param filename
 	 * @return
 	 */
-	public static String readFile(String filename) {
+	public static String readFromFile(String filename) {
 		String ret = "";
 		File file = new File(filename);
         BufferedReader reader = null;  
@@ -52,4 +50,20 @@ public class ConfReader {
         }
         return ret;
 	}
+	
+	/**
+	 * 将数据写入文件
+	 * @param addr
+	 * 文件地址
+	 * @param data
+	 * 要写入的地址
+	 * @throws IOException
+	 */
+	public static void writeToFile(String addr, String data) throws IOException {
+		FileWriter fileWriter = new FileWriter(addr);
+		fileWriter.write(data);
+		fileWriter.flush();
+		fileWriter.close();
+	}
+
 }
