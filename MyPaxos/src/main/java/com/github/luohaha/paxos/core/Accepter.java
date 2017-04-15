@@ -21,6 +21,7 @@ import com.github.luohaha.paxos.utils.CommClientImpl;
 import com.github.luohaha.paxos.utils.CommServer;
 import com.github.luohaha.paxos.utils.CommServerImpl;
 import com.github.luohaha.paxos.utils.ConfReader;
+import com.github.luohaha.paxos.utils.FileUtils;
 import com.github.luohaha.paxos.utils.NonBlockServerImpl;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -266,7 +267,7 @@ public class Accepter {
 	private void instanceRecover() {
 		if (!this.confObject.isEnableDataPersistence())
 			return;
-		String data = ConfReader.readFile(getInstanceFileAddr());
+		String data = FileUtils.readFromFile(getInstanceFileAddr());
 		if (data == null || data.length() == 0) {
 			File file = new File(getInstanceFileAddr());
 			if (!file.exists()) {
@@ -301,6 +302,18 @@ public class Accepter {
 
 	public Map<Integer, Instance> getInstanceState() {
 		return instanceState;
+	}
+
+	public int getId() {
+		return id;
+	}
+
+	public ConfObject getConfObject() {
+		return confObject;
+	}
+
+	public int getGroupId() {
+		return groupId;
 	}
 
 }
