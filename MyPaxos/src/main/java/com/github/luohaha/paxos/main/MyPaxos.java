@@ -18,6 +18,7 @@ import com.github.luohaha.paxos.packet.Packet;
 import com.github.luohaha.paxos.utils.CommServer;
 import com.github.luohaha.paxos.utils.CommServerImpl;
 import com.github.luohaha.paxos.utils.ConfReader;
+import com.github.luohaha.paxos.utils.FileUtils;
 import com.github.luohaha.paxos.utils.NonBlockServerImpl;
 import com.google.gson.Gson;
 
@@ -51,7 +52,7 @@ public class MyPaxos {
 	public MyPaxos(String confFile) {
 		super();
 		this.confFile = confFile;
-		this.confObject = gson.fromJson(ConfReader.readFile(this.confFile), ConfObject.class);
+		this.confObject = gson.fromJson(FileUtils.readFromFile(this.confFile), ConfObject.class);
 		this.infoObject = getMy(this.confObject.getNodes());
 	}
 	
