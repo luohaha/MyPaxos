@@ -49,8 +49,8 @@ public class MmapTool {
 	 * @throws IOException
 	 */
 	public byte[] read() throws IOException {
-		this.readBuffer = channel.map(MapMode.READ_ONLY, 0, this.start);
-		byte[] data = new byte[this.start];
+		this.readBuffer = channel.map(MapMode.READ_ONLY, 0, this.raf.length());
+		byte[] data = new byte[(int) this.raf.length()];
 		this.readBuffer.get(data);
 		return data;
 	}
@@ -59,7 +59,7 @@ public class MmapTool {
 	 * 拓展存储
 	 * @throws IOException
 	 */
-	public void extendMemory() throws IOException {
+	private void extendMemory() throws IOException {
 		this.end += CHUNK_SIZE;
 		this.buffer = channel.map(MapMode.READ_WRITE, start, end - start);
 	}
