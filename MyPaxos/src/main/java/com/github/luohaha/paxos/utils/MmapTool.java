@@ -26,8 +26,19 @@ public class MmapTool {
 	public MmapTool(String addr) throws IOException {
 		this.raf = new RandomAccessFile(addr, "rw");
 		this.channel = this.raf.getChannel();
+		this.channel.force(true);
 		this.end += CHUNK_SIZE;
 		this.buffer = channel.map(MapMode.READ_WRITE, this.start, this.end - this.start);
+	}
+	
+	/**
+	 * 将文件长度设置为0，清空文件
+	 * @throws IOException
+	 */
+	public void clear() throws IOException {
+		this.raf.setLength(0);
+		this.start = this.end = 0;
+		extendMemory();
 	}
 	
 	/**

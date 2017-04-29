@@ -33,4 +33,9 @@ public interface MyPaxosLog {
 	 * @param value
 	 */
 	public void setInstanceValue(int instanceId, Object value) throws IOException;
+	/**
+	 * 清空日志
+	 * @throws IOException
+	 */
+	public void clearLog() throws IOException;
 }

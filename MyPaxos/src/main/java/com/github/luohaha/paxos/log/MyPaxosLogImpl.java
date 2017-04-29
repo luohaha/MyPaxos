@@ -199,6 +199,12 @@ public class MyPaxosLogImpl implements MyPaxosLog {
 			   (data[start + 2] & 0xff) << 16 |
 			   (data[start + 3] & 0xff) << 24;
 	}
+
+	@Override
+	public void clearLog() throws IOException {
+		// TODO Auto-generated method stub
+		this.tool.clear();
+	}
 	
 	public static void main(String[] args) {
 		try {
@@ -209,6 +215,10 @@ public class MyPaxosLogImpl implements MyPaxosLog {
 			myPaxosLog.setInstanceValue(2, "paxos");
 			myPaxosLog.setInstanceBallot(3, 1);
 			myPaxosLog.setInstanceAcceptedBallot(4, 2);
+			myPaxosLog.recoverFromLog();
+			myPaxosLog.clearLog();
+			myPaxosLog.setInstanceValue(1, "hello");
+			myPaxosLog.setInstanceValue(2, "paxos");
 			myPaxosLog.recoverFromLog();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
