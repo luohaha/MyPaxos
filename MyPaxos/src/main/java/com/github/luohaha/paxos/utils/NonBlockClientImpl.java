@@ -43,10 +43,12 @@ public class NonBlockClientImpl implements CommClient {
 						SelectionKey key = iterator.next();
 						SocketChannel channel = (SocketChannel) key.channel();
 						if (key.isConnectable()) {
-							if (channel.finishConnect()) {
-								channel.register(this.selector, SelectionKey.OP_WRITE);
-							} else {
-								throw new IOException();
+							try {
+								if (channel.finishConnect()) {
+									channel.register(this.selector, SelectionKey.OP_WRITE);
+								}
+							} catch (IOException e) {
+								
 							}
 						} else if (key.isWritable()) {
 							// 数据可写
