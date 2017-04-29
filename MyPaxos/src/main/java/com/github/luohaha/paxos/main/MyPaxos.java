@@ -15,10 +15,12 @@ import com.github.luohaha.paxos.core.Learner;
 import com.github.luohaha.paxos.core.PaxosCallback;
 import com.github.luohaha.paxos.core.Proposer;
 import com.github.luohaha.paxos.packet.Packet;
+import com.github.luohaha.paxos.utils.CommClient;
 import com.github.luohaha.paxos.utils.CommServer;
 import com.github.luohaha.paxos.utils.CommServerImpl;
 import com.github.luohaha.paxos.utils.ConfReader;
 import com.github.luohaha.paxos.utils.FileUtils;
+import com.github.luohaha.paxos.utils.NonBlockClientImpl;
 import com.github.luohaha.paxos.utils.NonBlockServerImpl;
 import com.google.gson.Gson;
 
@@ -28,7 +30,7 @@ public class MyPaxos {
 	 * 全局配置文件信息
 	 */
 	private ConfObject confObject;
-	
+
 	/**
 	 * 本节点的信息
 	 */
@@ -38,33 +40,43 @@ public class MyPaxos {
 	 * 配置文件所在的位置
 	 */
 	private String confFile;
-	
+
 	private Map<Integer, PaxosCallback> groupidToCallback = new HashMap<>();
-	
+
 	private Map<Integer, Proposer> groupidToProposer = new HashMap<>();
-	
+
 	private Map<Integer, Accepter> groupidToAccepter = new HashMap<>();
-	
+
 	private Map<Integer, Learner> groupidToLearner = new HashMap<>();
-	
+
 	private Gson gson = new Gson();
 
-	public MyPaxos(String confFile) {
+	/*
+	 * 客户端
+	 */
+	private CommClient client;
+
+	public MyPaxos(String confFile) throws IOException {
 		super();
 		this.confFile = confFile;
 		this.confObject = gson.fromJson(FileUtils.readFromFile(this.confFile), ConfObject.class);
 		this.infoObject = getMy(this.confObject.getNodes());
+		// 启动客户端
+		this.client = new NonBlockClientImpl();
 	}
-	
+
 	/**
 	 * 
 	 * @param id
 	 * @param executor
 	 */
 	public void setGroupId(int groupId, PaxosCallback executor) {
-		Accepter accepter = new Accepter(infoObject.getId(), confObject.getNodes(), infoObject, confObject, groupId);
-		Proposer proposer = new Proposer(infoObject.getId(), confObject.getNodes(), infoObject, confObject.getTimeout(), accepter, groupId);
-		Learner learner = new Learner(infoObject.getId(), confObject.getNodes(), infoObject, confObject, accepter, executor, groupId);
+		Accepter accepter = new Accepter(infoObject.getId(), confObject.getNodes(), infoObject, confObject, groupId,
+				this.client);
+		Proposer proposer = new Proposer(infoObject.getId(), confObject.getNodes(), infoObject, confObject.getTimeout(),
+				accepter, groupId, this.client);
+		Learner learner = new Learner(infoObject.getId(), confObject.getNodes(), infoObject, confObject, accepter,
+				executor, groupId, this.client);
 		this.groupidToCallback.put(groupId, executor);
 		this.groupidToAccepter.put(groupId, accepter);
 		this.groupidToProposer.put(groupId, proposer);
@@ -88,11 +100,11 @@ public class MyPaxos {
 
 	/**
 	 * 启动paxos服务器
+	 * 
 	 * @throws IOException
 	 * @throws InterruptedException
 	 */
 	public void start() throws IOException, InterruptedException {
-		
 		// 启动paxos服务器
 		CommServer server = new NonBlockServerImpl(this.infoObject.getPort());
 		System.out.println("paxos server-" + confObject.getMyid() + " start...");

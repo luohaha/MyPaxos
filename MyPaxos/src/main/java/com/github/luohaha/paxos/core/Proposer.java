@@ -104,7 +104,10 @@ public class Proposer {
 	
 	private Gson gson = new Gson();
 	
-	public Proposer(int id, List<InfoObject> accepters, InfoObject my, int timeout, Accepter accepter, int groupId) {
+	// 客户端
+	private CommClient client;
+	
+	public Proposer(int id, List<InfoObject> accepters, InfoObject my, int timeout, Accepter accepter, int groupId, CommClient client) {
 		this.id = id;
 		this.accepters = accepters;
 		this.accepterNum = accepters.size();
@@ -112,6 +115,7 @@ public class Proposer {
 		this.timeout = timeout;
 		this.accepter = accepter;
 		this.groupId = groupId;
+		this.client = client;
 		new Thread(() -> {
 			while (true) {
 				try {
@@ -218,12 +222,11 @@ public class Proposer {
 	 */
 	private void prepare(int id, int instance, int ballot) {
 		this.instanceState.get(instance).state = Proposer_State.PREPARE;
-		CommClient client = new CommClientImpl();
 		this.accepters.forEach((info) -> {
 			PacketBean bean = new PacketBean("PreparePacket", gson.toJson(new PreparePacket(id, instance, ballot)));
 			String msg = gson.toJson(new Packet(bean, groupId, WorkerType.ACCEPTER));
 			try {
-				client.sendTo(info.getHost(), info.getPort(), msg.getBytes());
+				this.client.sendTo(info.getHost(), info.getPort(), msg.getBytes());
 			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -285,14 +288,13 @@ public class Proposer {
 	 */
 	private void accept(int id, int instance, int ballot, Object value) {
 		this.instanceState.get(instance).state = Proposer_State.ACCEPT;
-		CommClient client = new CommClientImpl();
 		Gson gson = new Gson();
 		this.accepters.forEach((info) -> {
 			PacketBean bean = new PacketBean("AcceptPacket",
 					gson.toJson(new AcceptPacket(id, instance, ballot, value)));
 			String msg = gson.toJson(new Packet(bean, groupId, WorkerType.ACCEPTER));
 			try {
-				client.sendTo(info.getHost(), info.getPort(), msg.getBytes());
+				this.client.sendTo(info.getHost(), info.getPort(), msg.getBytes());
 			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();

@@ -76,11 +76,14 @@ public class Learner {
 
 	private Gson gson = new Gson();
 	
+	// 客户端
+	private CommClient client;
+	
 	// 消息队列，保存packetbean
 	private BlockingQueue<PacketBean> msgQueue = new LinkedBlockingQueue<>();
 
 	public Learner(int id, List<InfoObject> learners, InfoObject my, ConfObject confObject, Accepter accepter,
-			PaxosCallback executor, int groupId) {
+			PaxosCallback executor, int groupId, CommClient client) {
 		super();
 		this.id = id;
 		this.accepterNum = learners.size();
@@ -90,6 +93,7 @@ public class Learner {
 		this.accepter = accepter;
 		this.executor = executor;
 		this.groupId = groupId;
+		this.client = client;
 		service.scheduleAtFixedRate(() -> {
 			// 广播学习请求
 			sendRequest(this.id, this.currentInstance);
@@ -147,12 +151,11 @@ public class Learner {
 	 */
 	private void sendRequest(int id, int instance) {
 		this.tmpState.remove(instance);
-		CommClient client = new CommClientImpl();
 		PacketBean packetBean = new PacketBean("LearnRequest", gson.toJson(new LearnRequest(id, instance)));
 		String data = gson.toJson(new Packet(packetBean, this.groupId, WorkerType.LEARNER));
 		learners.forEach((info) -> {
 			try {
-				client.sendTo(info.getHost(), info.getPort(), data.getBytes());
+				this.client.sendTo(info.getHost(), info.getPort(), data.getBytes());
 			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				// e.printStackTrace();
@@ -170,11 +173,10 @@ public class Learner {
 	 */
 	private void sendResponse(int peerId, int instance, String value) {
 		InfoObject peer = getSpecLearner(peerId);
-		CommClient client = new CommClientImpl();
 		try {
 			PacketBean packetBean = new PacketBean("LearnResponse",
 					gson.toJson(new LearnResponse(id, instance, value)));
-			client.sendTo(peer.getHost(), peer.getPort(),
+			this.client.sendTo(peer.getHost(), peer.getPort(),
 					gson.toJson(new Packet(packetBean, this.groupId, WorkerType.LEARNER)).getBytes());
 		} catch (IOException e) {
 			// TODO Auto-generated catch block

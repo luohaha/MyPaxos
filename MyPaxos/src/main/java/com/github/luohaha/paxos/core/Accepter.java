@@ -65,16 +65,19 @@ public class Accepter {
 	private int groupId;
 
 	private Gson gson = new Gson();
+	//客户端
+	private CommClient client;
 
 	// 消息队列，保存packetbean
 	private BlockingQueue<PacketBean> msgQueue = new LinkedBlockingQueue<>();
 
-	public Accepter(int id, List<InfoObject> proposers, InfoObject my, ConfObject confObject, int groupId) {
+	public Accepter(int id, List<InfoObject> proposers, InfoObject my, ConfObject confObject, int groupId, CommClient client) {
 		this.id = id;
 		this.proposers = proposers;
 		this.my = my;
 		this.confObject = confObject;
 		this.groupId = groupId;
+		this.client = client;
 		instanceRecover();
 		new Thread(() -> {
 			while (true) {
@@ -166,11 +169,10 @@ public class Accepter {
 	 */
 	private void prepareResponse(int peerId, int id, int instance, boolean ok, int ab, Object av)
 			throws UnknownHostException, IOException {
-		CommClient client = new CommClientImpl();
 		PacketBean bean = new PacketBean("PrepareResponsePacket",
 				gson.toJson(new PrepareResponsePacket(id, instance, ok, ab, av)));
 		InfoObject peer = getSpecInfoObect(peerId);
-		client.sendTo(peer.getHost(), peer.getPort(),
+		this.client.sendTo(peer.getHost(), peer.getPort(),
 				gson.toJson(new Packet(bean, groupId, WorkerType.PROPOSER)).getBytes());
 	}
 
@@ -212,11 +214,10 @@ public class Accepter {
 	}
 
 	private void acceptResponse(int peerId, int id, int instance, boolean ok) throws UnknownHostException, IOException {
-		CommClient client = new CommClientImpl();
 		InfoObject infoObject = getSpecInfoObect(peerId);
 		PacketBean bean = new PacketBean("AcceptResponsePacket",
 				gson.toJson(new AcceptResponsePacket(id, instance, ok)));
-		client.sendTo(infoObject.getHost(), infoObject.getPort(),
+		this.client.sendTo(infoObject.getHost(), infoObject.getPort(),
 				gson.toJson(new Packet(bean, groupId, WorkerType.PROPOSER)).getBytes());
 	}
 
