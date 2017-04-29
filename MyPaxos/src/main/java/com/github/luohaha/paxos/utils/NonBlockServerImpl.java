@@ -15,23 +15,23 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class NonBlockServerImpl implements CommServer {
-	
+
 	private Selector selector;
 	private ServerSocketChannel channel;
-	// 分配指定大小的缓冲区  
-    private ByteBuffer buffer = ByteBuffer.allocate(1024); 
+	// 分配指定大小的缓冲区
+	private ByteBuffer buffer = ByteBuffer.allocate(1024);
 	// 读取出来的消息
 	private BlockingQueue<byte[]> queue = new LinkedBlockingQueue<>();
 	// 读出来的数据
 	private Map<SelectionKey, String> map = new HashMap<>();
-	
+
 	public NonBlockServerImpl(int port) throws IOException {
 		this.selector = Selector.open();
 		this.channel = ServerSocketChannel.open();
 		this.channel.configureBlocking(false);
 		this.channel.socket().bind(new InetSocketAddress(port), 32);
 		this.channel.register(this.selector, SelectionKey.OP_ACCEPT);
-		
+
 		new Thread(() -> {
 			while (true) {
 				try {
@@ -50,7 +50,7 @@ public class NonBlockServerImpl implements CommServer {
 			}
 		}).start();
 	}
-	
+
 	private void readData(SelectionKey key) throws IOException, InterruptedException {
 		if (key.isAcceptable()) {
 			ServerSocketChannel server = (ServerSocketChannel) key.channel();
@@ -70,13 +70,14 @@ public class NonBlockServerImpl implements CommServer {
 			} else {
 				// 读取结束
 				String data = map.remove(key);
-				this.queue.put(data.getBytes());
+				if (data != null) {
+					this.queue.put(data.getBytes());
+				}
 				channel.close();
 			}
 			buffer.clear();
 		}
 	}
-	
 
 	@Override
 	public byte[] recvFrom() throws InterruptedException {
@@ -85,4 +86,10 @@ public class NonBlockServerImpl implements CommServer {
 		return msg;
 	}
 
+	public static void main(String[] args) throws IOException, InterruptedException {
+		CommServer commServer = new NonBlockServerImpl(8888);
+		while (true) {
+			System.out.println(new String(commServer.recvFrom()));
+		}
+	}
 }
