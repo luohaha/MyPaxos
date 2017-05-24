@@ -6,6 +6,7 @@ import java.net.UnknownHostException;
 import com.github.luohaha.paxos.core.WorkerType;
 import com.github.luohaha.paxos.packet.Packet;
 import com.github.luohaha.paxos.packet.PacketBean;
+import com.github.luohaha.paxos.utils.ClientImplByLC4J;
 import com.github.luohaha.paxos.utils.CommClient;
 import com.github.luohaha.paxos.utils.CommClientImpl;
 import com.google.gson.Gson;
@@ -20,11 +21,11 @@ public class MyPaxosClient {
 	
 	private Gson gson = new Gson();
 	
-	public MyPaxosClient(String host, int port) {
+	public MyPaxosClient(String host, int port) throws IOException {
 		super();
 		this.host = host;
 		this.port = port;
-		this.commClient = new CommClientImpl();
+		this.commClient = new ClientImplByLC4J(1);
 	}
 	
 	public void submit(String value, int groupId) throws UnknownHostException, IOException {

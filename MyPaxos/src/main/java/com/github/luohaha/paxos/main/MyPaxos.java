@@ -15,6 +15,7 @@ import com.github.luohaha.paxos.core.Learner;
 import com.github.luohaha.paxos.core.PaxosCallback;
 import com.github.luohaha.paxos.core.Proposer;
 import com.github.luohaha.paxos.packet.Packet;
+import com.github.luohaha.paxos.utils.ClientImplByLC4J;
 import com.github.luohaha.paxos.utils.CommClient;
 import com.github.luohaha.paxos.utils.CommServer;
 import com.github.luohaha.paxos.utils.CommServerImpl;
@@ -22,6 +23,7 @@ import com.github.luohaha.paxos.utils.ConfReader;
 import com.github.luohaha.paxos.utils.FileUtils;
 import com.github.luohaha.paxos.utils.NonBlockClientImpl;
 import com.github.luohaha.paxos.utils.NonBlockServerImpl;
+import com.github.luohaha.paxos.utils.ServerImplByLC4J;
 import com.google.gson.Gson;
 
 public class MyPaxos {
@@ -62,7 +64,7 @@ public class MyPaxos {
 		this.confObject = gson.fromJson(FileUtils.readFromFile(this.confFile), ConfObject.class);
 		this.infoObject = getMy(this.confObject.getNodes());
 		// 启动客户端
-		this.client = new NonBlockClientImpl();
+		this.client = new ClientImplByLC4J(4);
 	}
 
 	/**
@@ -106,7 +108,7 @@ public class MyPaxos {
 	 */
 	public void start() throws IOException, InterruptedException {
 		// 启动paxos服务器
-		CommServer server = new NonBlockServerImpl(this.infoObject.getPort());
+		CommServer server = new ServerImplByLC4J(this.infoObject.getPort(), 4);
 		System.out.println("paxos server-" + confObject.getMyid() + " start...");
 		while (true) {
 			byte[] data = server.recvFrom();

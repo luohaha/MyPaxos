@@ -11,8 +11,8 @@ import com.google.gson.Gson;
 public class ClientTest {
 
 	public static void main(String[] args) {
-		MyPaxosClient client = new MyPaxosClient("localhost", 33333);
 		try {
+			MyPaxosClient client = new MyPaxosClient("localhost", 33333);
 			client.submit(new Gson().toJson(new MsgBean("put", "name", "Mike")), 1);
 			client.submit(new Gson().toJson(new MsgBean("put", "name", "Neo")), 2);
 			//client.submit(new Gson().toJson(new MsgBean("delete", "name", "")), 2);
