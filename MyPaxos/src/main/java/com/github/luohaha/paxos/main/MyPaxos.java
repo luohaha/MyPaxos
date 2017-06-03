@@ -5,6 +5,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.sound.midi.MidiDevice.Info;
 
@@ -15,15 +18,17 @@ import com.github.luohaha.paxos.core.Learner;
 import com.github.luohaha.paxos.core.PaxosCallback;
 import com.github.luohaha.paxos.core.Proposer;
 import com.github.luohaha.paxos.packet.Packet;
-import com.github.luohaha.paxos.utils.ClientImplByLC4J;
-import com.github.luohaha.paxos.utils.CommClient;
-import com.github.luohaha.paxos.utils.CommServer;
-import com.github.luohaha.paxos.utils.CommServerImpl;
 import com.github.luohaha.paxos.utils.ConfReader;
 import com.github.luohaha.paxos.utils.FileUtils;
-import com.github.luohaha.paxos.utils.NonBlockClientImpl;
-import com.github.luohaha.paxos.utils.NonBlockServerImpl;
-import com.github.luohaha.paxos.utils.ServerImplByLC4J;
+import com.github.luohaha.paxos.utils.client.ClientImplByLC4J;
+import com.github.luohaha.paxos.utils.client.CommClient;
+import com.github.luohaha.paxos.utils.client.NonBlockClientImpl;
+import com.github.luohaha.paxos.utils.serializable.ObjectSerialize;
+import com.github.luohaha.paxos.utils.serializable.ObjectSerializeImpl;
+import com.github.luohaha.paxos.utils.server.CommServer;
+import com.github.luohaha.paxos.utils.server.CommServerImpl;
+import com.github.luohaha.paxos.utils.server.NonBlockServerImpl;
+import com.github.luohaha.paxos.utils.server.ServerImplByLC4J;
 import com.google.gson.Gson;
 
 public class MyPaxos {
@@ -52,6 +57,10 @@ public class MyPaxos {
 	private Map<Integer, Learner> groupidToLearner = new HashMap<>();
 
 	private Gson gson = new Gson();
+	
+	private ObjectSerialize objectSerialize = new ObjectSerializeImpl();
+	
+	private Logger logger = Logger.getLogger("MyPaxos");
 
 	/*
 	 * 客户端
@@ -65,6 +74,25 @@ public class MyPaxos {
 		this.infoObject = getMy(this.confObject.getNodes());
 		// 启动客户端
 		this.client = new ClientImplByLC4J(4);
+		//this.logger.setLevel(Level.WARNING);
+	}
+	
+	/**
+	 * 设置log级别
+	 * @param level
+	 * 级别
+	 */
+	public void setLogLevel(Level level) {
+		this.logger.setLevel(level);
+	}
+	
+	/**
+	 * add handler
+	 * @param handler
+	 * handler
+	 */
+	public void addLogHandler(Handler handler) {
+		this.logger.addHandler(handler);
 	}
 
 	/**
@@ -105,14 +133,16 @@ public class MyPaxos {
 	 * 
 	 * @throws IOException
 	 * @throws InterruptedException
+	 * @throws ClassNotFoundException 
 	 */
-	public void start() throws IOException, InterruptedException {
+	public void start() throws IOException, InterruptedException, ClassNotFoundException {
 		// 启动paxos服务器
 		CommServer server = new ServerImplByLC4J(this.infoObject.getPort(), 4);
 		System.out.println("paxos server-" + confObject.getMyid() + " start...");
 		while (true) {
 			byte[] data = server.recvFrom();
-			Packet packet = gson.fromJson(new String(data), Packet.class);
+			//Packet packet = gson.fromJson(new String(data), Packet.class);
+			Packet packet = objectSerialize.byteArrayToObject(data, Packet.class);
 			int groupId = packet.getGroupId();
 			Accepter accepter = this.groupidToAccepter.get(groupId);
 			Proposer proposer = this.groupidToProposer.get(groupId);
