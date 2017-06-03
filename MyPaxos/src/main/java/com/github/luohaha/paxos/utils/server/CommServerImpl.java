@@ -1,4 +1,4 @@
-package com.github.luohaha.paxos.utils;
+package com.github.luohaha.paxos.utils.server;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;

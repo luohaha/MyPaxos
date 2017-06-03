@@ -1,4 +1,4 @@
-package com.github.luohaha.paxos.utils;
+package com.github.luohaha.paxos.utils.client;
 
 import java.io.IOException;
 import java.net.Socket;
