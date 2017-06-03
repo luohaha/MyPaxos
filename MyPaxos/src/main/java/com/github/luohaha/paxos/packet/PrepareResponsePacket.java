@@ -1,12 +1,14 @@
 package com.github.luohaha.paxos.packet;
 
-public class PrepareResponsePacket {
+import java.io.Serializable;
+
+public class PrepareResponsePacket implements Serializable {
 	private int id;
 	private int instance;
 	private boolean ok;
 	private int ab;
-	private Object av;
-	public PrepareResponsePacket(int id, int instance, boolean ok, int ab, Object av) {
+	private Value av;
+	public PrepareResponsePacket(int id, int instance, boolean ok, int ab, Value av) {
 		super();
 		this.id = id;
 		this.instance = instance;
@@ -38,10 +40,10 @@ public class PrepareResponsePacket {
 	public void setAb(int ab) {
 		this.ab = ab;
 	}
-	public Object getAv() {
+	public Value getAv() {
 		return av;
 	}
-	public void setAv(Object av) {
+	public void setAv(Value av) {
 		this.av = av;
 	}
 	

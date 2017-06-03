@@ -1,9 +1,11 @@
 package com.github.luohaha.paxos.packet;
 
-public class PacketBean {
+import java.io.Serializable;
+
+public class PacketBean implements Serializable {
 	private String type;
-	private String data;
-	public PacketBean(String type, String data) {
+	private Object data;
+	public PacketBean(String type, Object data) {
 		super();
 		this.type = type;
 		this.data = data;
@@ -14,10 +16,10 @@ public class PacketBean {
 	public void setType(String type) {
 		this.type = type;
 	}
-	public String getData() {
+	public Object getData() {
 		return data;
 	}
-	public void setData(String data) {
+	public void setData(Object data) {
 		this.data = data;
 	}
 	

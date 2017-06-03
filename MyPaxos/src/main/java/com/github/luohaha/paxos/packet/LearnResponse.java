@@ -1,10 +1,12 @@
 package com.github.luohaha.paxos.packet;
 
-public class LearnResponse {
+import java.io.Serializable;
+
+public class LearnResponse implements Serializable {
 	private int id;
 	private int instance;
-	private String value;
-	public LearnResponse(int id, int instance, String value) {
+	private Value value;
+	public LearnResponse(int id, int instance, Value value) {
 		super();
 		this.id = id;
 		this.instance = instance;
@@ -22,11 +24,12 @@ public class LearnResponse {
 	public void setInstance(int instance) {
 		this.instance = instance;
 	}
-	public String getValue() {
+	public Value getValue() {
 		return value;
 	}
-	public void setValue(String value) {
+	public void setValue(Value value) {
 		this.value = value;
 	}
+	
 	
 }

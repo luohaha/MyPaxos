@@ -1,6 +1,8 @@
 package com.github.luohaha.paxos.packet;
 
-public class AcceptResponsePacket {
+import java.io.Serializable;
+
+public class AcceptResponsePacket implements Serializable {
 	private int id;
 	private int instance;
 	private boolean ok;

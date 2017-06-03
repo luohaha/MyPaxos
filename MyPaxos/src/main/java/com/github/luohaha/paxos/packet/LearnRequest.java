@@ -1,6 +1,8 @@
 package com.github.luohaha.paxos.packet;
 
-public class LearnRequest {
+import java.io.Serializable;
+
+public class LearnRequest implements Serializable {
 	private int id;
 	private int instance;
 	public LearnRequest(int id, int instance) {

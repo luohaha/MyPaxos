@@ -1,11 +1,13 @@
 package com.github.luohaha.paxos.packet;
 
-public class AcceptPacket {
+import java.io.Serializable;
+
+public class AcceptPacket implements Serializable {
 	private int id;
 	private int instance;
 	private int ballot;
-	private Object value;
-	public AcceptPacket(int id, int instance, int ballot, Object value) {
+	private Value value;
+	public AcceptPacket(int id, int instance, int ballot, Value value) {
 		super();
 		this.id = id;
 		this.instance = instance;
@@ -30,10 +32,10 @@ public class AcceptPacket {
 	public void setBallot(int ballot) {
 		this.ballot = ballot;
 	}
-	public Object getValue() {
+	public Value getValue() {
 		return value;
 	}
-	public void setValue(Object value) {
+	public void setValue(Value value) {
 		this.value = value;
 	}
 	

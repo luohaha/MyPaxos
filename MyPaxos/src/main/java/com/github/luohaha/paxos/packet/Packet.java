@@ -1,8 +1,10 @@
 package com.github.luohaha.paxos.packet;
 
+import java.io.Serializable;
+
 import com.github.luohaha.paxos.core.WorkerType;
 
-public class Packet {
+public class Packet implements Serializable {
 	private PacketBean packetBean;
 	private int groupId;
 	private WorkerType workerType;

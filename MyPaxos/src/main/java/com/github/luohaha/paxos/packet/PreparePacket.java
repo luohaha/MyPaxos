@@ -1,6 +1,8 @@
 package com.github.luohaha.paxos.packet;
 
-public class PreparePacket {
+import java.io.Serializable;
+
+public class PreparePacket implements Serializable {
 	private int peerId;
 	private int instance;
 	private int ballot;
