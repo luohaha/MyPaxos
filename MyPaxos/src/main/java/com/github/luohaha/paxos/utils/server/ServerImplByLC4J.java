@@ -1,8 +1,9 @@
-package com.github.luohaha.paxos.utils;
+package com.github.luohaha.paxos.utils.server;
 
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.logging.Level;
 
 import com.github.luohaha.param.ServerParam;
 import com.github.luohaha.server.LightCommServer;
@@ -13,8 +14,9 @@ public class ServerImplByLC4J implements CommServer {
 	private LightCommServer server;
 	private ServerParam serverParam;
 	
-	public ServerImplByLC4J(int port, int ioThreadPoolSize) throws IOException {
+	public ServerImplByLC4J(int port, int ioThreadPoolSize) {
 		this.serverParam = new ServerParam("localhost", port);
+		this.serverParam.setLogLevel(Level.WARNING);
 		this.serverParam.setBacklog(128);
 		this.serverParam.setOnRead((conn, data) -> {
 			queue.add(data);
