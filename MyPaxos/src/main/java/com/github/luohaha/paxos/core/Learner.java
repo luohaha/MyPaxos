@@ -8,23 +8,28 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 
 import com.github.luohaha.paxos.core.Accepter.Instance;
 import com.github.luohaha.paxos.packet.LearnRequest;
 import com.github.luohaha.paxos.packet.LearnResponse;
 import com.github.luohaha.paxos.packet.Packet;
 import com.github.luohaha.paxos.packet.PacketBean;
-import com.github.luohaha.paxos.utils.CommClient;
-import com.github.luohaha.paxos.utils.CommClientImpl;
-import com.github.luohaha.paxos.utils.CommServer;
-import com.github.luohaha.paxos.utils.CommServerImpl;
+import com.github.luohaha.paxos.packet.Value;
 import com.github.luohaha.paxos.utils.ConfReader;
-import com.github.luohaha.paxos.utils.NonBlockServerImpl;
+import com.github.luohaha.paxos.utils.client.CommClient;
+import com.github.luohaha.paxos.utils.client.CommClientImpl;
+import com.github.luohaha.paxos.utils.serializable.ObjectSerialize;
+import com.github.luohaha.paxos.utils.serializable.ObjectSerializeImpl;
+import com.github.luohaha.paxos.utils.server.CommServer;
+import com.github.luohaha.paxos.utils.server.CommServerImpl;
+import com.github.luohaha.paxos.utils.server.NonBlockServerImpl;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
@@ -40,13 +45,13 @@ public class Learner {
 	private List<InfoObject> learners;
 
 	// 学习到的临时状态 instanceid -> id -> value
-	private Map<Integer, Map<Integer, String>> tmpState = new HashMap<>();
+	private Map<Integer, Map<Integer, Value>> tmpState = new HashMap<>();
 
 	// 学习的状态
-	private Map<Integer, String> state = new HashMap<>();
+	private Map<Integer, Value> state = new HashMap<>();
 
 	// 学习到的instance
-	private int currentInstance = 1;
+	private volatile int currentInstance = 1;
 
 	// learner配置信息
 	private InfoObject my;
@@ -74,7 +79,9 @@ public class Learner {
 	// 组id
 	private int groupId;
 
-	private Gson gson = new Gson();
+	private ObjectSerialize objectSerialize = new ObjectSerializeImpl();
+	
+	private Logger logger = Logger.getLogger("MyPaxos");
 	
 	// 客户端
 	private CommClient client;
@@ -128,14 +135,16 @@ public class Learner {
 	public void recvPacket(PacketBean bean) {
 		switch (bean.getType()) {
 		case "LearnRequest":
-			LearnRequest request = gson.fromJson(bean.getData(), LearnRequest.class);
-			String value = "";
+			//LearnRequest request = gson.fromJson(bean.getData(), LearnRequest.class);
+			LearnRequest request = (LearnRequest) bean.getData();
+			Value value = null;
 			if (accepter.getAcceptedValue().containsKey(request.getInstance()))
-				value = accepter.getAcceptedValue().get(request.getInstance()).toString();
+				value = accepter.getAcceptedValue().get(request.getInstance());
 			sendResponse(request.getId(), request.getInstance(), value);
 			break;
 		case "LearnResponse":
-			LearnResponse response = gson.fromJson(bean.getData(), LearnResponse.class);
+			//LearnResponse response = gson.fromJson(bean.getData(), LearnResponse.class);
+			LearnResponse response = (LearnResponse) bean.getData();
 			onResponse(response.getId(), response.getInstance(), response.getValue());
 			break;
 		default:
@@ -150,17 +159,22 @@ public class Learner {
 	 * @param instance
 	 */
 	private void sendRequest(int id, int instance) {
-		this.tmpState.remove(instance);
-		PacketBean packetBean = new PacketBean("LearnRequest", gson.toJson(new LearnRequest(id, instance)));
-		String data = gson.toJson(new Packet(packetBean, this.groupId, WorkerType.LEARNER));
-		learners.forEach((info) -> {
-			try {
-				this.client.sendTo(info.getHost(), info.getPort(), data.getBytes());
-			} catch (Exception e) {
-				// TODO Auto-generated catch block
-				// e.printStackTrace();
-			}
-		});
+		//this.tmpState.remove(instance);
+		PacketBean packetBean = new PacketBean("LearnRequest", new LearnRequest(id, instance));
+		byte[] data;
+		try {
+			data = this.objectSerialize.objectToObjectArray(new Packet(packetBean, this.groupId, WorkerType.LEARNER));
+			learners.forEach((info) -> {
+				try {
+					this.client.sendTo(info.getHost(), info.getPort(), data);
+				} catch (IOException e) {
+					//
+				}
+			});
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
 	}
 
 	/**
@@ -171,13 +185,12 @@ public class Learner {
 	 * @param instance
 	 * @param value
 	 */
-	private void sendResponse(int peerId, int instance, String value) {
+	private void sendResponse(int peerId, int instance, Value value) {
 		InfoObject peer = getSpecLearner(peerId);
 		try {
-			PacketBean packetBean = new PacketBean("LearnResponse",
-					gson.toJson(new LearnResponse(id, instance, value)));
+			PacketBean packetBean = new PacketBean("LearnResponse", new LearnResponse(id, instance, value));
 			this.client.sendTo(peer.getHost(), peer.getPort(),
-					gson.toJson(new Packet(packetBean, this.groupId, WorkerType.LEARNER)).getBytes());
+					this.objectSerialize.objectToObjectArray(new Packet(packetBean, this.groupId, WorkerType.LEARNER)));
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -206,15 +219,15 @@ public class Learner {
 	 * @param instance
 	 * @param value
 	 */
-	private void onResponse(int peerId, int instance, String value) {
+	private void onResponse(int peerId, int instance, Value value) {
 		if (!this.tmpState.containsKey(instance)) {
 			this.tmpState.put(instance, new HashMap<>());
 		}
-		if (value == null || value.length() == 0)
+		if (value == null)
 			return;
-		Map<Integer, String> map = this.tmpState.get(instance);
+		Map<Integer, Value> map = this.tmpState.get(instance);
 		map.put(peerId, value);
-		Map<String, Integer> count = new HashMap<>();
+		Map<Value, Integer> count = new HashMap<>();
 		map.forEach((k, v) -> {
 			if (!count.containsKey(v)) {
 				count.put(v, 1);
@@ -235,10 +248,29 @@ public class Learner {
 				}
 				if (instance == currentInstance) {
 					// 调用paxos状态执行者
-					this.executor.callback(k);
+					this.logger.info("[onResponse success]" + " " + peerId + " " + instance + " " + value);
+					handleCallback(k);
 					currentInstance++;
 				}
 			}
 		});
+	}
+	
+	/**
+	 *  调用paxos状态执行者 
+	 * @param value
+	 */
+	private void handleCallback(Value value) {
+		byte[] data = value.getData();
+		Queue<byte[]> values;
+		try {
+			values = this.objectSerialize.byteArrayToObject(data, Queue.class);
+			values.forEach(v -> {
+				this.executor.callback(v);
+			});
+		} catch (ClassNotFoundException | IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 }

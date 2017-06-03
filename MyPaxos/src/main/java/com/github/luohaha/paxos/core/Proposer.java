@@ -14,6 +14,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.logging.Logger;
 
 import com.github.luohaha.paxos.packet.AcceptPacket;
 import com.github.luohaha.paxos.packet.AcceptResponsePacket;
@@ -21,11 +22,14 @@ import com.github.luohaha.paxos.packet.Packet;
 import com.github.luohaha.paxos.packet.PacketBean;
 import com.github.luohaha.paxos.packet.PreparePacket;
 import com.github.luohaha.paxos.packet.PrepareResponsePacket;
-import com.github.luohaha.paxos.utils.CommClient;
-import com.github.luohaha.paxos.utils.CommClientImpl;
-import com.github.luohaha.paxos.utils.CommServer;
-import com.github.luohaha.paxos.utils.CommServerImpl;
-import com.github.luohaha.paxos.utils.NonBlockServerImpl;
+import com.github.luohaha.paxos.packet.Value;
+import com.github.luohaha.paxos.utils.client.CommClient;
+import com.github.luohaha.paxos.utils.client.CommClientImpl;
+import com.github.luohaha.paxos.utils.serializable.ObjectSerialize;
+import com.github.luohaha.paxos.utils.serializable.ObjectSerializeImpl;
+import com.github.luohaha.paxos.utils.server.CommServer;
+import com.github.luohaha.paxos.utils.server.CommServerImpl;
+import com.github.luohaha.paxos.utils.server.NonBlockServerImpl;
 import com.google.gson.Gson;
 
 public class Proposer {
@@ -38,7 +42,7 @@ public class Proposer {
 		// a set for promise receive
 		private Set<Integer> pSet;
 		// value found after phase 1
-		private Object value;
+		private Value value;
 		// value's ballot
 		private int valueBallot;
 		// accept set
@@ -48,8 +52,8 @@ public class Proposer {
 		// state
 		private Proposer_State state;
 
-		public Instance(int ballot, Set<Integer> pSet, Object value, int valueBallot,
-				Set<Integer> acceptSet, boolean isSucc, Proposer_State state) {
+		public Instance(int ballot, Set<Integer> pSet, Value value, int valueBallot, Set<Integer> acceptSet,
+				boolean isSucc, Proposer_State state) {
 			super();
 			this.ballot = ballot;
 			this.pSet = pSet;
@@ -83,31 +87,34 @@ public class Proposer {
 	private int timeout;
 
 	// 准备提交的状态
-	private BlockingQueue<Object> readyToSubmitQueue = new ArrayBlockingQueue<>(1);
+	private BlockingQueue<Value> readyToSubmitQueue = new ArrayBlockingQueue<>(1);
 
 	// 成功提交的状态
-	private BlockingQueue<Object> hasSummitQueue = new ArrayBlockingQueue<>(1);
-	
+	private BlockingQueue<Value> hasSummitQueue = new ArrayBlockingQueue<>(1);
+
 	// 上一次的提交是否成功
 	private boolean isLastSumbitSucc = false;
-	
-	//本节点的accepter
+
+	// 本节点的accepter
 	private Accepter accepter;
-	
-	//组id
+
+	// 组id
 	private int groupId;
-	
+
 	// 消息队列，保存packetbean
 	private BlockingQueue<PacketBean> msgQueue = new LinkedBlockingQueue<>();
-	
+
 	private BlockingQueue<PacketBean> submitMsgQueue = new LinkedBlockingQueue<>();
-	
-	private Gson gson = new Gson();
-	
+
+	private ObjectSerialize objectSerialize = new ObjectSerializeImpl();
+
+	private Logger logger = Logger.getLogger("MyPaxos");
+
 	// 客户端
 	private CommClient client;
-	
-	public Proposer(int id, List<InfoObject> accepters, InfoObject my, int timeout, Accepter accepter, int groupId, CommClient client) {
+
+	public Proposer(int id, List<InfoObject> accepters, InfoObject my, int timeout, Accepter accepter, int groupId,
+			CommClient client) {
 		this.id = id;
 		this.accepters = accepters;
 		this.accepterNum = accepters.size();
@@ -131,7 +138,7 @@ public class Proposer {
 			while (true) {
 				try {
 					PacketBean msg = this.submitMsgQueue.take();
-					submit(msg.getData());
+					submit((Value) msg.getData());
 				} catch (Exception e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -139,33 +146,32 @@ public class Proposer {
 			}
 		}).start();
 	}
-	
+
 	/**
 	 * 向消息队列中插入packetbean
+	 * 
 	 * @param bean
 	 * @throws InterruptedException
 	 */
 	public void sendPacket(PacketBean bean) throws InterruptedException {
 		this.msgQueue.put(bean);
 	}
-	
+
 	/**
 	 * 处理接收到的packetbean
+	 * 
 	 * @param bean
-	 * @throws InterruptedException 
+	 * @throws InterruptedException
 	 */
 	public void recvPacket(PacketBean bean) throws InterruptedException {
 		switch (bean.getType()) {
 		case "PrepareResponsePacket":
-			PrepareResponsePacket prepareResponsePacket = gson.fromJson(bean.getData(),
-					PrepareResponsePacket.class);
+			PrepareResponsePacket prepareResponsePacket = (PrepareResponsePacket) bean.getData();
 			onPrepareResponse(prepareResponsePacket.getId(), prepareResponsePacket.getInstance(),
-					prepareResponsePacket.isOk(), prepareResponsePacket.getAb(),
-					prepareResponsePacket.getAv());
+					prepareResponsePacket.isOk(), prepareResponsePacket.getAb(), prepareResponsePacket.getAv());
 			break;
 		case "AcceptResponsePacket":
-			AcceptResponsePacket acceptResponsePacket = gson.fromJson(bean.getData(),
-					AcceptResponsePacket.class);
+			AcceptResponsePacket acceptResponsePacket = (AcceptResponsePacket) bean.getData();
 			onAcceptResponce(acceptResponsePacket.getId(), acceptResponsePacket.getInstance(),
 					acceptResponsePacket.isOk());
 			break;
@@ -180,14 +186,15 @@ public class Proposer {
 
 	/**
 	 * 客户端向proposer提交想要提交的状态
+	 * 
 	 * @param object
 	 * @return
 	 * @throws InterruptedException
 	 */
-	public Object submit(Object object) throws InterruptedException {
+	public Value submit(Value object) throws InterruptedException {
 		this.readyToSubmitQueue.put(object);
 		beforPrepare();
-		Object value = this.hasSummitQueue.take();
+		Value value = this.hasSummitQueue.take();
 		return value;
 	}
 
@@ -197,10 +204,9 @@ public class Proposer {
 	 */
 	public void beforPrepare() {
 		// 获取accepter最近的一次instance的id
-		this.currentInstance = accepter.getLastInstanceId();
+		this.currentInstance = Math.max(this.currentInstance, accepter.getLastInstanceId());
 		this.currentInstance++;
-		Instance instance = new Instance(1, new HashSet<>(), null, 0, new HashSet<>(), false,
-				Proposer_State.READY);
+		Instance instance = new Instance(1, new HashSet<>(), null, 0, new HashSet<>(), false, Proposer_State.READY);
 		this.instanceState.put(this.currentInstance, instance);
 		if (this.isLastSumbitSucc == false) {
 			// 执行完整的流程
@@ -222,16 +228,19 @@ public class Proposer {
 	 */
 	private void prepare(int id, int instance, int ballot) {
 		this.instanceState.get(instance).state = Proposer_State.PREPARE;
-		this.accepters.forEach((info) -> {
-			PacketBean bean = new PacketBean("PreparePacket", gson.toJson(new PreparePacket(id, instance, ballot)));
-			String msg = gson.toJson(new Packet(bean, groupId, WorkerType.ACCEPTER));
-			try {
-				this.client.sendTo(info.getHost(), info.getPort(), msg.getBytes());
-			} catch (Exception e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		});
+		try {
+			PacketBean bean = new PacketBean("PreparePacket", new PreparePacket(id, instance, ballot));
+			byte[] msg = this.objectSerialize.objectToObjectArray(new Packet(bean, groupId, WorkerType.ACCEPTER));
+			this.accepters.forEach((info) -> {
+				try {
+					this.client.sendTo(info.getHost(), info.getPort(), msg);
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			});
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 		setTimeout(new TimerTask() {
 
 			@Override
@@ -256,7 +265,7 @@ public class Proposer {
 	 * @param av
 	 * @throws InterruptedException
 	 */
-	public void onPrepareResponse(int peerId, int instance, boolean ok, int ab, Object av) {
+	public void onPrepareResponse(int peerId, int instance, boolean ok, int ab, Value av) {
 		Instance current = this.instanceState.get(instance);
 		if (current.state != Proposer_State.PREPARE)
 			return;
@@ -269,7 +278,7 @@ public class Proposer {
 			}
 			if (current.pSet.size() >= this.accepterNum / 2 + 1) {
 				if (current.value == null) {
-					Object object = this.readyToSubmitQueue.peek();
+					Value object = this.readyToSubmitQueue.peek();
 					current.value = object;
 					current.isSucc = true;
 				}
@@ -286,20 +295,24 @@ public class Proposer {
 	 * @param ballot
 	 * @param value
 	 */
-	private void accept(int id, int instance, int ballot, Object value) {
+	private void accept(int id, int instance, int ballot, Value value) {
 		this.instanceState.get(instance).state = Proposer_State.ACCEPT;
-		Gson gson = new Gson();
-		this.accepters.forEach((info) -> {
-			PacketBean bean = new PacketBean("AcceptPacket",
-					gson.toJson(new AcceptPacket(id, instance, ballot, value)));
-			String msg = gson.toJson(new Packet(bean, groupId, WorkerType.ACCEPTER));
-			try {
-				this.client.sendTo(info.getHost(), info.getPort(), msg.getBytes());
-			} catch (Exception e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		});
+		try {
+			PacketBean bean = new PacketBean("AcceptPacket", new AcceptPacket(id, instance, ballot, value));
+			byte[] msg = this.objectSerialize.objectToObjectArray(new Packet(bean, groupId, WorkerType.ACCEPTER));
+			this.accepters.forEach((info) -> {
+				try {
+					this.client.sendTo(info.getHost(), info.getPort(), msg);
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			});
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+
 		setTimeout(new TimerTask() {
 			@Override
 			public void run() {

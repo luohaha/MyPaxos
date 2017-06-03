@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.logging.Logger;
 
 import com.github.luohaha.paxos.packet.AcceptPacket;
 import com.github.luohaha.paxos.packet.AcceptResponsePacket;
@@ -16,13 +17,16 @@ import com.github.luohaha.paxos.packet.Packet;
 import com.github.luohaha.paxos.packet.PacketBean;
 import com.github.luohaha.paxos.packet.PreparePacket;
 import com.github.luohaha.paxos.packet.PrepareResponsePacket;
-import com.github.luohaha.paxos.utils.CommClient;
-import com.github.luohaha.paxos.utils.CommClientImpl;
-import com.github.luohaha.paxos.utils.CommServer;
-import com.github.luohaha.paxos.utils.CommServerImpl;
+import com.github.luohaha.paxos.packet.Value;
 import com.github.luohaha.paxos.utils.ConfReader;
 import com.github.luohaha.paxos.utils.FileUtils;
-import com.github.luohaha.paxos.utils.NonBlockServerImpl;
+import com.github.luohaha.paxos.utils.client.CommClient;
+import com.github.luohaha.paxos.utils.client.CommClientImpl;
+import com.github.luohaha.paxos.utils.serializable.ObjectSerialize;
+import com.github.luohaha.paxos.utils.serializable.ObjectSerializeImpl;
+import com.github.luohaha.paxos.utils.server.CommServer;
+import com.github.luohaha.paxos.utils.server.CommServerImpl;
+import com.github.luohaha.paxos.utils.server.NonBlockServerImpl;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
@@ -31,18 +35,18 @@ public class Accepter {
 		// current ballot number
 		private int ballot;
 		// accepted value
-		private Object value;
+		private Value value;
 		// accepted value's ballot
 		private int acceptedBallot;
 
-		public Instance(int ballot, Object value, int acceptedBallot) {
+		public Instance(int ballot, Value value, int acceptedBallot) {
 			super();
 			this.ballot = ballot;
 			this.value = value;
 			this.acceptedBallot = acceptedBallot;
 		}
 
-		public void setValue(Object value) {
+		public void setValue(Value value) {
 			this.value = value;
 		}
 	}
@@ -50,7 +54,7 @@ public class Accepter {
 	// accepter's state, contain each instances
 	private Map<Integer, Instance> instanceState = new HashMap<>();
 	// accepted value
-	private Map<Integer, Object> acceptedValue = new HashMap<>();
+	private Map<Integer, Value> acceptedValue = new HashMap<>();
 	// accepter's id
 	private transient int id;
 	// proposers
@@ -58,13 +62,17 @@ public class Accepter {
 	// my conf
 	private transient InfoObject my;
 	// 保存最近一次成功提交的instance，用于优化
-	private int lastInstanceId = 0;
+	private volatile int lastInstanceId = 0;
 	// 配置文件
 	private ConfObject confObject;
 	// 组id
 	private int groupId;
 
 	private Gson gson = new Gson();
+	
+	private ObjectSerialize objectSerialize = new ObjectSerializeImpl();
+	
+	private Logger logger = Logger.getLogger("MyPaxos");
 	//客户端
 	private CommClient client;
 
@@ -111,11 +119,13 @@ public class Accepter {
 	public void recvPacket(PacketBean bean) throws UnknownHostException, IOException {
 		switch (bean.getType()) {
 		case "PreparePacket":
-			PreparePacket preparePacket = gson.fromJson(bean.getData(), PreparePacket.class);
+			//PreparePacket preparePacket = gson.fromJson(bean.getData(), PreparePacket.class);
+			PreparePacket preparePacket = (PreparePacket) bean.getData();
 			onPrepare(preparePacket.getPeerId(), preparePacket.getInstance(), preparePacket.getBallot());
 			break;
 		case "AcceptPacket":
-			AcceptPacket acceptPacket = gson.fromJson(bean.getData(), AcceptPacket.class);
+			//AcceptPacket acceptPacket = gson.fromJson(bean.getData(), AcceptPacket.class);
+			AcceptPacket acceptPacket = (AcceptPacket) bean.getData();
 			onAccept(acceptPacket.getId(), acceptPacket.getInstance(), acceptPacket.getBallot(),
 					acceptPacket.getValue());
 			break;
@@ -167,13 +177,13 @@ public class Accepter {
 	 * @throws IOException
 	 * @throws UnknownHostException
 	 */
-	private void prepareResponse(int peerId, int id, int instance, boolean ok, int ab, Object av)
+	private void prepareResponse(int peerId, int id, int instance, boolean ok, int ab, Value av)
 			throws UnknownHostException, IOException {
-		PacketBean bean = new PacketBean("PrepareResponsePacket",
-				gson.toJson(new PrepareResponsePacket(id, instance, ok, ab, av)));
+		PacketBean bean = new PacketBean("PrepareResponsePacket", 
+				new PrepareResponsePacket(id, instance, ok, ab, av));
 		InfoObject peer = getSpecInfoObect(peerId);
-		this.client.sendTo(peer.getHost(), peer.getPort(),
-				gson.toJson(new Packet(bean, groupId, WorkerType.PROPOSER)).getBytes());
+		this.client.sendTo(peer.getHost(), peer.getPort(), 
+				this.objectSerialize.objectToObjectArray(new Packet(bean, groupId, WorkerType.PROPOSER)));
 	}
 
 	/**
@@ -188,7 +198,8 @@ public class Accepter {
 	 * @throws IOException
 	 * @throws UnknownHostException
 	 */
-	public void onAccept(int peerId, int instance, int ballot, Object value) throws UnknownHostException, IOException {
+	public void onAccept(int peerId, int instance, int ballot, Value value) throws UnknownHostException, IOException {
+		this.logger.info("[onaccept]" + peerId + " " + instance + " " + ballot + " " + value);
 		if (!this.instanceState.containsKey(instance)) {
 			acceptResponse(peerId, id, instance, false);
 		} else {
@@ -197,6 +208,7 @@ public class Accepter {
 				current.acceptedBallot = ballot;
 				current.value = value;
 				// 成功
+				this.logger.info("[onaccept success]");
 				this.acceptedValue.put(instance, value);
 				if (!this.instanceState.containsKey(instance + 1)) {
 					// multi-paxos 中的优化，省去了连续成功后的prepare阶段
@@ -211,14 +223,14 @@ public class Accepter {
 				acceptResponse(peerId, id, instance, false);
 			}
 		}
+		this.logger.info("[onaccept end]");
 	}
 
 	private void acceptResponse(int peerId, int id, int instance, boolean ok) throws UnknownHostException, IOException {
 		InfoObject infoObject = getSpecInfoObect(peerId);
-		PacketBean bean = new PacketBean("AcceptResponsePacket",
-				gson.toJson(new AcceptResponsePacket(id, instance, ok)));
+		PacketBean bean = new PacketBean("AcceptResponsePacket", new AcceptResponsePacket(id, instance, ok));
 		this.client.sendTo(infoObject.getHost(), infoObject.getPort(),
-				gson.toJson(new Packet(bean, groupId, WorkerType.PROPOSER)).getBytes());
+				this.objectSerialize.objectToObjectArray(new Packet(bean, groupId, WorkerType.PROPOSER)));
 	}
 
 	/**
@@ -297,7 +309,7 @@ public class Accepter {
 		return this.confObject.getDataDir() + "accepter-" + this.groupId + "-" + this.id + ".json";
 	}
 
-	public Map<Integer, Object> getAcceptedValue() {
+	public Map<Integer, Value> getAcceptedValue() {
 		return acceptedValue;
 	}
 
