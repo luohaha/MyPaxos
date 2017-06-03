@@ -3,19 +3,20 @@ package com.github.luohaha.paxos.packet;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 public class Value implements Serializable {
-	private int id;
+	private UUID id;
 	private byte[] data;
-	public Value(int id, byte[] data) {
+	public Value(UUID id, byte[] data) {
 		super();
 		this.id = id;
 		this.data = data;
 	}
-	public int getId() {
+	public UUID getId() {
 		return id;
 	}
-	public void setId(int id) {
+	public void setId(UUID id) {
 		this.id = id;
 	}
 	public byte[] getData() {
@@ -26,7 +27,10 @@ public class Value implements Serializable {
 	}
 	@Override
 	public int hashCode() {
-		return this.id;
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((id == null) ? 0 : id.hashCode());
+		return result;
 	}
 	@Override
 	public boolean equals(Object obj) {
@@ -37,9 +41,13 @@ public class Value implements Serializable {
 		if (getClass() != obj.getClass())
 			return false;
 		Value other = (Value) obj;
-		if (id != other.id)
+		if (id == null) {
+			if (other.id != null)
+				return false;
+		} else if (!id.equals(other.id))
 			return false;
 		return true;
 	}
+	
 	
 }

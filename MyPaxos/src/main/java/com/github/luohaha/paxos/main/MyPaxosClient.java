@@ -6,6 +6,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
+import java.util.UUID;
 
 import com.github.luohaha.paxos.core.WorkerType;
 import com.github.luohaha.paxos.exception.PaxosClientNullAddressException;
@@ -68,11 +69,20 @@ public class MyPaxosClient {
 	public void flush(int groupId) throws UnknownHostException, IOException {
 		if (this.buffer.isEmpty())
 			return;
-		Packet packet = new Packet(new PacketBean("SubmitPacket", new Value(tmp++, this.objectSerialize.objectToObjectArray(this.buffer))), groupId, WorkerType.SERVER);
+		UUID uuid = UUID.randomUUID();
+		Packet packet = new Packet(new PacketBean("SubmitPacket", new Value(uuid, this.objectSerialize.objectToObjectArray(this.buffer))), groupId, WorkerType.SERVER);
 		this.commClient.sendTo(this.host, this.port, this.objectSerialize.objectToObjectArray(packet));
 		this.buffer.clear();
 	}
 	
+	/**
+	 *  提交提案
+	 * @param value
+	 * @param groupId
+	 * @throws PaxosClientNullAddressException
+	 * @throws UnknownHostException
+	 * @throws IOException
+	 */
 	public void submit(byte[] value, int groupId) throws PaxosClientNullAddressException, UnknownHostException, IOException {
 		if (this.host == null)
 			throw new PaxosClientNullAddressException();
