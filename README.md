@@ -22,24 +22,6 @@ paxos协议中有三种角色：
 
 paxos协议保证在每一轮的提案中，只要某一个提案被大于半数的accepter接受，本轮的提案也就生效了，不会再被修改和破坏。具体的算法说明可以看[维基百科](https://zh.wikipedia.org/wiki/Paxos%E7%AE%97%E6%B3%95)。
 
-## 总体架构和流程示意图
-
-* paxos服务器和客户端
-
-![](http://7xrlnt.com1.z0.glb.clouddn.com/mypaxos.png)
-
-* paxos协议的提交流程
-
-![](http://7xrlnt.com1.z0.glb.clouddn.com/mypaxos-2.png)
-
-* 多个instance的确认
-
-![](http://7xrlnt.com1.z0.glb.clouddn.com/mypaxos-3.png)
-
-* learner的学习
-
-![](http://7xrlnt.com1.z0.glb.clouddn.com/mypaxos-4.png)
-
 ## 使用
 
 使用MyPaxos协议服务，需要下面几步：
